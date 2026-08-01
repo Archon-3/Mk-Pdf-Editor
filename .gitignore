@@ -1,0 +1,53 @@
+﻿
+# Dependency folders
+node_modules/
+backend/vendor/
+
+# Build outputs
+/dist/
+/build/
+/dist-ssr/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Runtime and user-uploaded files
+backend/uploads/
+backend/output/
+backend/tmp/
+backend/cache/
+backend/__pycache__/
+
+# Editor / OS files
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Misc generated files
+*.pem
+*.crt
+*.key
+

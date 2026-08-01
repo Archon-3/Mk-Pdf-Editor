@@ -1,0 +1,22 @@
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { AppLayout } from './shared/components/AppLayout.tsx'
+import { HomePage } from './pages/home/index.ts'
+import { SignupPage } from './pages/signup/index.ts'
+import { LoginPage } from './pages/login/index.ts'
+import { ToolsListPage } from './pages/tools/index.ts'
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<AppLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="signup" element={<SignupPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="tools" element={<ToolsListPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
+}
