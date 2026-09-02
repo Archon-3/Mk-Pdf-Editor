@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { PDF_TOOLS } from '../../../features/pdf-tools/index.ts'
 import { getToolIcon } from '../../utils/toolIcons.tsx'
 import type { ToolId } from '../../../features/pdf-tools/shared/types'
@@ -15,6 +16,13 @@ const railIcons = [
 ] as const
 
 export function EditorSidebar({ activeTool, onSelectTool }: EditorSidebarProps) {
+  const navigate = useNavigate()
+
+  const handleToolClick = (toolId: ToolId) => {
+    onSelectTool(toolId)
+    navigate(`/tools/${toolId}`)
+  }
+
   return (
     <aside className="editor-sidebar-wrap">
       <nav className="editor-rail" aria-label="Quick navigation">
@@ -63,7 +71,7 @@ export function EditorSidebar({ activeTool, onSelectTool }: EditorSidebarProps) 
               <button
                 type="button"
                 className={`editor-tool-list-item ${activeTool === tool.id ? 'active' : ''}`}
-                onClick={() => onSelectTool(tool.id)}
+                onClick={() => handleToolClick(tool.id)}
               >
                 <span className="editor-tool-list-icon">{getToolIcon(tool.name)}</span>
                 <span className="editor-tool-list-label">{tool.name}</span>

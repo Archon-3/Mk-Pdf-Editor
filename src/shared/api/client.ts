@@ -16,7 +16,7 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
   return response.json() as Promise<T>
 }
 
-export async function uploadFile(file: File, toolId: string): Promise<{ jobId: string }> {
+export async function uploadFile(file: File, toolId: string): Promise<{ jobId: string; downloadUrl: string; filename: string }> {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('toolId', toolId)
@@ -26,11 +26,17 @@ export async function uploadFile(file: File, toolId: string): Promise<{ jobId: s
     body: formData,
   })
 
-  if (!response.ok) {
-    throw new Error('Upload failed')
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok || !data.success) {
+    throw new Error(data?.error?.message || 'Upload failed')
   }
 
-  return response.json()
+  return {
+    jobId: data.job_id || data.jobId,
+    downloadUrl: data.download_url || data.downloadUrl,
+    filename: data.filename || file.name,
+  }
 }
 
 export async function downloadFile(jobId: string): Promise<Blob> {

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { PDF_TOOLS } from '../../pdf-tools/index.ts'
 
 const toolIcons: Record<string, React.ReactNode> = {
@@ -139,7 +140,7 @@ export function ToolsShowcase() {
       <h2>Powerful Tools for Every PDF Task</h2>
       <div className="tools-grid">
         {PDF_TOOLS.map((tool) => (
-          <article className="tool-tile" key={tool.id}>
+          <Link to={`/tools/${tool.id}`} className="tool-tile" key={tool.id}>
             <div className="tool-icon">
               {toolIcons[tool.id] || (
                 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -151,7 +152,7 @@ export function ToolsShowcase() {
               <h4>{tool.name}</h4>
               <p>{tool.description}</p>
             </div>
-          </article>
+          </Link>
         ))}
       </div>
     </section>
