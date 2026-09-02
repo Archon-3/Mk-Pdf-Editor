@@ -1,10 +1,62 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 from typing import Any, Dict, List
 
+import fitz
+from PIL import Image
 from docx import Document
 from docx.shared import Inches
+
+
+def _render_pdf_page_to_image(page: fitz.Page, scale: float = 1.25) -> bytes:
+    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+
+    if hasattr(pix, 'pil_image'):
+        image = pix.pil_image()
+    else:
+        image = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
+
+    buffer = io.BytesIO()
+    image.save(buffer, format='PNG')
+    return buffer.getvalue()
+
+
+def build_docx_from_pdf(pdf_path: str | Path, output_path: str | Path, page_scale: float = 1.25) -> str:
+    """Preserve PDF visuals by rendering each page as an image in the DOCX."""
+    source = Path(pdf_path)
+    output = Path(output_path)
+    document = Document()
+
+    with fitz.open(str(source)) as pdf_document:
+        if pdf_document.page_count == 0:
+            raise ValueError('PDF contains no pages.')
+
+        for page_index, page in enumerate(pdf_document):
+            image_bytes = _render_pdf_page_to_image(page, scale=page_scale)
+            image_stream = io.BytesIO(image_bytes)
+            image_stream.name = f'page-{page_index + 1}.png'
+
+            paragraph = document.add_paragraph()
+            run = paragraph.add_run()
+            width_in = min(7.5, max(5.0, page.rect.width / 72.0))
+            run.add_picture(image_stream, width=Inches(width_in))
+
+            if page_index < pdf_document.page_count - 1:
+                document.add_page_break()
+
+    section = document.sections[0]
+    section.page_width = Inches(8.27)
+    section.page_height = Inches(11.69)
+    section.left_margin = Inches(0.5)
+    section.right_margin = Inches(0.5)
+    section.top_margin = Inches(0.4)
+    section.bottom_margin = Inches(0.4)
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    document.save(output)
+    return str(output)
 
 
 def _finalize_cell_values(layout: List[Dict[str, Any]]) -> List[List[str]]:
