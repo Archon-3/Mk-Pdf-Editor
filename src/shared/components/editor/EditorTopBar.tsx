@@ -2,9 +2,11 @@ type EditorTopBarProps = {
   fileName: string
   zoom: number
   onZoomChange: (zoom: number) => void
+  onDownload?: () => void
+  processing?: boolean
 }
 
-export function EditorTopBar({ fileName, zoom, onZoomChange }: EditorTopBarProps) {
+export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, processing = false }: EditorTopBarProps) {
   const zoomOut = () => onZoomChange(Math.max(50, zoom - 10))
   const zoomIn = () => onZoomChange(Math.min(200, zoom + 10))
 
@@ -66,8 +68,8 @@ export function EditorTopBar({ fileName, zoom, onZoomChange }: EditorTopBarProps
             <circle cx="12" cy="19" r="1.5" fill="currentColor" stroke="none" />
           </svg>
         </button>
-        <button type="button" className="editor-download-btn">
-          Download
+        <button type="button" className="editor-download-btn" onClick={onDownload} disabled={!onDownload || processing}>
+          {processing ? 'Processing...' : 'Download'}
         </button>
       </div>
     </header>
