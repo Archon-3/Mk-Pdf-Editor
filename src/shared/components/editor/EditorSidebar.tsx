@@ -6,6 +6,7 @@ import type { ToolId } from '../../../features/pdf-tools/shared/types'
 type EditorSidebarProps = {
   activeTool: ToolId | null
   onSelectTool: (toolId: ToolId) => void
+  onQuickAction?: (action: (typeof railIcons)[number]['id']) => void
 }
 
 const railIcons = [
@@ -15,7 +16,7 @@ const railIcons = [
   { id: 'search', label: 'Search' },
 ] as const
 
-export function EditorSidebar({ activeTool, onSelectTool }: EditorSidebarProps) {
+export function EditorSidebar({ activeTool, onSelectTool, onQuickAction }: EditorSidebarProps) {
   const navigate = useNavigate()
 
   const handleToolClick = (toolId: ToolId) => {
@@ -33,6 +34,7 @@ export function EditorSidebar({ activeTool, onSelectTool }: EditorSidebarProps) 
             className={`rail-btn ${index === 0 ? 'active' : ''}`}
             aria-label={item.label}
             title={item.label}
+            onClick={() => onQuickAction?.(item.id)}
           >
             {index === 0 && (
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

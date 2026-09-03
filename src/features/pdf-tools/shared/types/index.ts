@@ -8,6 +8,8 @@ export type ToolId =
   | 'delete-pages'
   | 'page-rearrangement'
   | 'pdf-to-word'
+  | 'pdf-to-excel'
+  | 'pdf-to-powerpoint'
   | 'word-to-pdf'
   | 'excel-to-pdf'
   | 'powerpoint-to-pdf'

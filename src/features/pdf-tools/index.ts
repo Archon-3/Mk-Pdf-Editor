@@ -8,6 +8,8 @@ import { toolMeta as deletePages } from './transform/delete-pages'
 import { toolMeta as pageRearrangement } from './transform/page-rearrangement'
 
 import { toolMeta as pdfToWord } from './convert/pdf-to-word'
+import { toolMeta as pdfToExcel } from './convert/pdf-to-excel'
+import { toolMeta as pdfToPowerpoint } from './convert/pdf-to-powerpoint'
 import { toolMeta as wordToPdf } from './convert/word-to-pdf'
 import { toolMeta as excelToPdf } from './convert/excel-to-pdf'
 import { toolMeta as powerpointToPdf } from './convert/powerpoint-to-pdf'
@@ -33,6 +35,8 @@ export const PDF_TOOLS: ToolDefinition[] = [
   extractText,
   extractTables,
   pdfToWord,
+  pdfToExcel,
+  pdfToPowerpoint,
   wordToPdf,
   excelToPdf,
   powerpointToPdf,

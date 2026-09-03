@@ -15,6 +15,8 @@ from backend.app.services.conversion.excel_to_pdf import excel_to_pdf
 from backend.app.services.conversion.powerpoint_to_pdf import powerpoint_to_pdf
 from backend.app.services.conversion.pdf_to_image import pdf_to_image
 from backend.app.services.conversion.pdf_to_word import pdf_to_word as convert_pdf_to_word
+from backend.app.services.conversion.pdf_to_excel import pdf_to_excel
+from backend.app.services.conversion.pdf_to_powerpoint import pdf_to_powerpoint
 from backend.app.services.conversion.word_to_pdf import word_to_pdf
 from backend.app.services.extraction.images import extract_images
 from backend.app.services.extraction.text import extract_text
@@ -107,6 +109,12 @@ class ProcessingEngine:
             elif tool_id == 'pdf-to-word':
                 output_path = str(final_output_dir / f"{active_job_id}_{source_path.stem}.docx")
                 output_path = convert_pdf_to_word(source_path, output_path)
+            elif tool_id == 'pdf-to-excel':
+                output_path = str(final_output_dir / f'{active_job_id}_{source_path.stem}.xlsx')
+                output_path = pdf_to_excel(source_path, output_path)
+            elif tool_id == 'pdf-to-powerpoint':
+                output_path = str(final_output_dir / f'{active_job_id}_{source_path.stem}.pptx')
+                output_path = pdf_to_powerpoint(source_path, output_path)
             elif tool_id == 'word-to-pdf':
                 output_path = str(final_output_dir / f'{active_job_id}_{source_path.stem}.pdf')
                 output_path = word_to_pdf(source_path, output_path)

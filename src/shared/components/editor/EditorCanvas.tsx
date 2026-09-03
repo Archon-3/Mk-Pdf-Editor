@@ -14,33 +14,34 @@ type PreviewState =
   | { kind: 'unsupported' }
 
 function PdfPagesPreview({ file }: { file: File }) {
-  const [pageCount, setPageCount] = useState(0)
-  const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([])
+  const [pageImages, setPageImages] = useState<string[]>([])
 
   useEffect(() => {
     let cancelled = false
     async function renderPages() {
-      const document = await getDocument({ data: await file.arrayBuffer() }).promise
+      const pdfDocument = await getDocument({ data: await file.arrayBuffer() }).promise
       if (cancelled) return
-      setPageCount(document.numPages)
-      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
-        const page = await document.getPage(pageNumber)
+      const renderedPages: string[] = []
+      for (let pageNumber = 1; pageNumber <= pdfDocument.numPages; pageNumber += 1) {
+        const page = await pdfDocument.getPage(pageNumber)
         const viewport = page.getViewport({ scale: 1.15 })
-        const canvas = canvasRefs.current[pageNumber - 1]
-        if (!canvas || cancelled) continue
+        const canvas = document.createElement('canvas')
         canvas.width = viewport.width
         canvas.height = viewport.height
         await page.render({ canvas, canvasContext: canvas.getContext('2d')!, viewport }).promise
+        renderedPages.push(canvas.toDataURL('image/png'))
       }
+      if (!cancelled) setPageImages(renderedPages)
     }
-    renderPages().catch(() => setPageCount(0))
+    setPageImages([])
+    renderPages().catch(() => setPageImages([]))
     return () => { cancelled = true }
   }, [file])
 
   return (
     <div className="pdf-pages" aria-label="PDF pages">
-      {Array.from({ length: pageCount }, (_, index) => (
-        <canvas key={index} ref={(canvas) => { canvasRefs.current[index] = canvas }} className="pdf-page-preview" />
+      {pageImages.map((pageImage, index) => (
+        <img key={index} src={pageImage} className="pdf-page-preview" alt={`Page ${index + 1}`} />
       ))}
     </div>
   )
@@ -51,6 +52,7 @@ type ToolbarTool = 'select' | 'text' | 'textbox' | 'draw' | 'image' | 'undo' | '
 type EditorCanvasProps = {
   zoom: number
   file: File | null
+  previewFile?: File | null
   fileName: string | null
   files?: File[]
   onUpload: (file: File) => void
@@ -117,6 +119,7 @@ async function extractPdfText(file: File) {
 export function EditorCanvas({
   zoom,
   file,
+  previewFile = null,
   fileName,
   files = file ? [file] : [],
   onUpload,
@@ -168,7 +171,7 @@ export function EditorCanvas({
       return
     }
 
-    const selectedFile = file
+    const selectedFile = previewFile ?? file
     let cancelled = false
     let objectUrl: string | undefined
 
@@ -258,7 +261,7 @@ export function EditorCanvas({
         URL.revokeObjectURL(objectUrl)
       }
     }
-  }, [file])
+  }, [file, previewFile])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files ?? [])
@@ -356,13 +359,14 @@ export function EditorCanvas({
     }
 
     const currentToolLabel = activeSidebarTool ?? activeToolbarTool ?? 'select'
+    const shownFile = previewFile ?? file
     const isMergeReady = activeSidebarTool !== 'merge' || files.length >= 2
 
     return (
       <div className="document-viewer" data-testid="document-viewer">
         <div className="viewer-meta">
-          <span className="viewer-type-badge">{file.type || 'document'}</span>
-          <span className="viewer-file-name">{file.name}</span>
+          <span className="viewer-type-badge">{shownFile.type || 'document'}</span>
+          <span className="viewer-file-name">{shownFile.name}</span>
           <span className="viewer-editing-indicator">Editable mode • {currentToolLabel}</span>
           {operationControls()}
           <label className="editor-file-add-btn">
@@ -395,7 +399,7 @@ export function EditorCanvas({
 
         {preview.kind === 'image' && (
           <div className="image-editor-wrap">
-            <img className="image-preview" src={preview.url} alt={file.name} />
+            <img className="image-preview" src={preview.url} alt={shownFile.name} />
             <label className="editable-panel">
               <span>Image content</span>
               <textarea

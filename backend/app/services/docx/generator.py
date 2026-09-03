@@ -34,6 +34,11 @@ def build_docx_from_pdf(pdf_path: str | Path, output_path: str | Path, page_scal
             raise ValueError('PDF contains no pages.')
 
         for page_index, page in enumerate(pdf_document):
+            page_text = page.get_text().strip()
+            if page_text:
+                text_paragraph = document.add_paragraph()
+                text_paragraph.add_run(page_text)
+
             image_bytes = _render_pdf_page_to_image(page, scale=page_scale)
             image_stream = io.BytesIO(image_bytes)
             image_stream.name = f'page-{page_index + 1}.png'

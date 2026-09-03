@@ -21,6 +21,8 @@ TOOL_ACCEPTS = {
     'extract-text': {'pdf'},
     'extract-tables': {'pdf'},
     'pdf-to-word': {'pdf'},
+    'pdf-to-excel': {'pdf'},
+    'pdf-to-powerpoint': {'pdf'},
     'word-to-pdf': {'word'},
     'excel-to-pdf': {'excel'},
     'powerpoint-to-pdf': {'powerpoint'},

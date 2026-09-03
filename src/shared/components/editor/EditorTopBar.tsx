@@ -3,10 +3,14 @@ type EditorTopBarProps = {
   zoom: number
   onZoomChange: (zoom: number) => void
   onDownload?: () => void
+  onRename?: () => void
+  onHistory?: () => void
+  onViewMode?: () => void
+  onMoreOptions?: () => void
   processing?: boolean
 }
 
-export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, processing = false }: EditorTopBarProps) {
+export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, onRename, onHistory, onViewMode, onMoreOptions, processing = false }: EditorTopBarProps) {
   const zoomOut = () => onZoomChange(Math.max(50, zoom - 10))
   const zoomIn = () => onZoomChange(Math.min(200, zoom + 10))
 
@@ -20,7 +24,7 @@ export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, process
         </div>
         <div className="doc-title">
           <span>{fileName}</span>
-          <button type="button" className="editor-icon-btn" aria-label="Rename document">
+          <button type="button" className="editor-icon-btn" aria-label="Rename document" onClick={onRename}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M12 20h9" />
               <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
@@ -49,19 +53,19 @@ export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, process
       </div>
 
       <div className="editor-topbar-right">
-        <button type="button" className="editor-icon-btn" aria-label="History">
+        <button type="button" className="editor-icon-btn" aria-label="History" onClick={onHistory}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="9" />
             <path d="M12 7v5l3 3" />
           </svg>
         </button>
-        <button type="button" className="editor-icon-btn" aria-label="View mode">
+        <button type="button" className="editor-icon-btn" aria-label="View mode" onClick={onViewMode}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <rect x="3" y="4" width="18" height="16" rx="2" />
             <path d="M7 8h10M7 12h6" />
           </svg>
         </button>
-        <button type="button" className="editor-icon-btn" aria-label="More options">
+        <button type="button" className="editor-icon-btn" aria-label="More options" onClick={onMoreOptions}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="5" r="1.5" fill="currentColor" stroke="none" />
             <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />

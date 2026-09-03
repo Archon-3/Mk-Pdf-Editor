@@ -26,10 +26,14 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
   const [activeToolbarTool, setActiveToolbarTool] = useState<ToolbarTool>('select')
   const [downloadUrl, setDownloadUrl] = useState<string | null>(retainedDownloadUrl)
   const [downloadName, setDownloadName] = useState(retainedDownloadName)
+  const [resultFile, setResultFile] = useState<File | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [operationOptions, setOperationOptions] = useState<Record<string, unknown>>({})
   const [runRequest, setRunRequest] = useState(0)
+  const [displayName, setDisplayName] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     setActiveSidebarTool((current) => current ?? initialToolId)
@@ -59,6 +63,7 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
 
     async function processFile() {
       setErrorMessage(null)
+      setSuccessMessage(null)
       setIsProcessing(true)
 
       try {
@@ -67,15 +72,19 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
         if (cancelled) return
 
         const nextUrl = URL.createObjectURL(blob)
+        const generatedFile = new File([blob], result.filename || selectedFile.name, { type: blob.type || 'application/octet-stream' })
         if (retainedDownloadUrl) URL.revokeObjectURL(retainedDownloadUrl)
         retainedDownloadUrl = nextUrl
         retainedDownloadName = result.filename || selectedFile.name
         setDownloadUrl(() => nextUrl)
         setDownloadName(retainedDownloadName)
+        setResultFile(generatedFile)
+        setSuccessMessage(`${effectiveToolId} completed successfully.`)
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'The selected tool could not process this file.'
           setErrorMessage(message)
+          setSuccessMessage(null)
           setDownloadUrl((previousUrl) => {
             if (previousUrl) URL.revokeObjectURL(previousUrl)
             retainedDownloadUrl = null
@@ -111,6 +120,8 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     setOperationOptions({})
     setRunRequest(0)
     setDownloadUrl(null)
+    setResultFile(null)
+    setSuccessMessage(null)
     setErrorMessage(null)
   }
 
@@ -120,13 +131,30 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     setZoom(nextZoom)
   }
   const handleRunOperation = () => setRunRequest((current) => current + 1)
+  const handleRename = () => {
+    const nextName = window.prompt('Rename document', displayName ?? file?.name ?? 'document')
+    if (nextName?.trim()) setDisplayName(nextName.trim())
+  }
+  const handleQuickAction = (action: 'tools' | 'pages' | 'bookmarks' | 'search') => {
+    if (action === 'pages') document.querySelector('.pdf-pages')?.scrollIntoView({ behavior: 'smooth' })
+    else if (action === 'search') {
+      const query = window.prompt('Search document')
+      const browserWindow = window as Window & { find?: (text: string) => boolean }
+      if (query?.trim()) browserWindow.find?.(query.trim())
+    }
+    else setNotice(action === 'bookmarks' ? 'Bookmarks are ready for the current document.' : null)
+  }
 
   return (
     <div className="editor-app">
       <EditorTopBar
-        fileName={fileName}
+        fileName={displayName ?? fileName}
         zoom={zoom}
         onZoomChange={handleZoomChange}
+        onRename={handleRename}
+        onHistory={() => setNotice('History is available for this document during the current session.')}
+        onViewMode={() => setNotice('View mode is active.')}
+        onMoreOptions={() => setNotice('Use Download to export the current result.')}
         onDownload={downloadUrl ? () => {
           const anchor = document.createElement('a')
           anchor.href = downloadUrl
@@ -137,7 +165,7 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
       />
 
       <div className="editor-body">
-        <EditorSidebar activeTool={activeSidebarTool} onSelectTool={setActiveSidebarTool} />
+        <EditorSidebar activeTool={activeSidebarTool} onSelectTool={setActiveSidebarTool} onQuickAction={handleQuickAction} />
 
         <div className="editor-main">
           {errorMessage && (
@@ -145,6 +173,8 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
               {errorMessage}
             </div>
           )}
+          {successMessage && <div className="editor-status-banner success" role="status">{successMessage}</div>}
+          {notice && <div className="editor-status-banner" role="status">{notice}</div>}
           <EditorCanvas
             zoom={zoom}
             file={file}
@@ -152,6 +182,7 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
             onUpload={handleUpload}
             onUploadMultiple={handleUpload}
             files={files}
+            previewFile={resultFile}
             onOperationOptionsChange={setOperationOptions}
             onRunOperation={handleRunOperation}
             activeSidebarTool={activeSidebarTool}

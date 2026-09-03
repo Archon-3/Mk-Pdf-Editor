@@ -84,6 +84,22 @@ TOOL_CATALOG: List[Dict[str, Any]] = [
         "output": ["docx"],
     },
     {
+        "id": "pdf-to-excel",
+        "name": "PDF → Excel",
+        "description": "Convert PDF tables and text into an editable Excel workbook.",
+        "category": "convert",
+        "accepts": ["pdf"],
+        "output": ["xlsx"],
+    },
+    {
+        "id": "pdf-to-powerpoint",
+        "name": "PDF → PowerPoint",
+        "description": "Convert PDF pages into editable PowerPoint slides.",
+        "category": "convert",
+        "accepts": ["pdf"],
+        "output": ["pptx"],
+    },
+    {
         "id": "word-to-pdf",
         "name": "Word → PDF",
         "description": "Convert DOC/DOCX files to PDF.",
