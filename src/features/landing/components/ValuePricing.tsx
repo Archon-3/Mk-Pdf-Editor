@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { plans, whyItems } from '../data/content'
+import { PlanGrid, homePlans } from '../../pricing'
+import { whyItems } from '../data/content'
 
 export function ValuePricing() {
   return (
@@ -27,32 +28,16 @@ export function ValuePricing() {
           <span className="save">Save up to 40%</span>
         </div>
 
-        <div className="plan-grid">
-          {plans.map((plan) => (
-            <section key={plan.name} className={`plan-card ${plan.featured ? 'featured' : ''}`}>
-              {plan.badge ? <span className="plan-badge">{plan.badge}</span> : null}
-              <h3>{plan.name}</h3>
-              <p className="plan-price">
-                <strong>{plan.price}</strong>
-                <span>{plan.period}</span>
-              </p>
-              <p className="plan-detail">{plan.details}</p>
-              <ul>
-                {plan.features.map((feature) => (
-                  <li key={feature}>{feature}</li>
-                ))}
-              </ul>
-              <Link to="/tools" className="plan-cta">
-                {plan.cta}
-              </Link>
-            </section>
-          ))}
-        </div>
+        <PlanGrid plans={homePlans} />
 
         <div className="paypal-note">
           <strong>Payment method: PayPal</strong>
           <span>Secure checkout with PayPal, cards, and instant invoice.</span>
         </div>
+
+        <p className="pricing-page-link">
+          <Link to="/pricing">Compare full plans</Link>
+        </p>
       </article>
     </section>
   )

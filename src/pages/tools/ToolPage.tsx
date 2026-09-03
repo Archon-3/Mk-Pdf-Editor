@@ -1,6 +1,7 @@
 import { useParams } from 'react-router-dom'
 import { getToolById } from '../../features/pdf-tools'
 import { EditorLayout } from '../../shared/components/editor'
+import '../../styles/editor.css'
 
 export function ToolPage() {
   const { toolId = '' } = useParams()

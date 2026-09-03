@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { APP_NAME, APP_TAGLINE } from '../constants/branding'
 
 export function Footer() {
@@ -10,19 +11,19 @@ export function Footer() {
         </div>
         <div>
           <h4>Product</h4>
-          <a href="#features">Features</a>
-          <a href="#tools">Tools</a>
-          <a href="#pricing">Pricing</a>
+          <a href="/#features">Features</a>
+          <Link to="/tools">Tools</Link>
+          <Link to="/pricing">Pricing</Link>
         </div>
         <div>
           <h4>Company</h4>
           <a href="#">About</a>
           <a href="#">Careers</a>
-          <a href="#">Contact</a>
+          <Link to="/support">Contact</Link>
         </div>
         <div>
           <h4>Support</h4>
-          <a href="#">Help Center</a>
+          <Link to="/support">Help Center</Link>
           <a href="#">Privacy Policy</a>
           <a href="#">Terms</a>
         </div>

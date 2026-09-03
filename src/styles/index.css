@@ -521,6 +521,224 @@ h1 span {
   font-size: 0.9rem;
 }
 
+.pricing-page-link {
+  margin: 14px 0 0;
+  text-align: center;
+}
+
+.pricing-page-link a {
+  color: var(--brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.pricing-page-link a:hover {
+  text-decoration: underline;
+}
+
+.period-switch-interactive {
+  gap: 10px;
+}
+
+.period-switch-interactive button {
+  border: 1px solid #d7e4f8;
+  background: #fff;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.period-switch-interactive button.active {
+  border-color: #7b6eff;
+  background: linear-gradient(180deg, #f4f2ff, #ebe8ff);
+  color: var(--brand);
+}
+
+.content-page {
+  max-width: 980px;
+  margin: 18px auto 0;
+  display: grid;
+  gap: 22px;
+}
+
+.content-page-hero {
+  border: 1px solid #dce9fb;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #ffffff, #f4f8ff);
+  padding: 28px 24px;
+}
+
+.content-eyebrow {
+  margin: 0 0 8px;
+  color: var(--brand);
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.content-page-hero h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+
+.content-page-hero p {
+  margin: 10px 0 0;
+  max-width: 54ch;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.pricing-page-plans {
+  border: 1px solid #dce9fb;
+  border-radius: 18px;
+  background: linear-gradient(160deg, #ffffff, #f7fbff);
+  padding: 20px;
+}
+
+.plan-grid-page {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 720px;
+}
+
+.content-faq-block,
+.support-contact {
+  border: 1px solid #dce9fb;
+  border-radius: 18px;
+  background: #fff;
+  padding: 20px;
+}
+
+.content-faq-block h2,
+.support-contact h2 {
+  margin: 0 0 14px;
+  font-size: 1.35rem;
+}
+
+.content-faq-list {
+  display: grid;
+  gap: 10px;
+}
+
+.content-faq-item {
+  border: 1px solid #e4eefb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #fbfcff;
+}
+
+.content-faq-item summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.content-faq-item p {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+  font-size: 0.92rem;
+}
+
+.support-page-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.support-contact-lead {
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.support-contact-lead a {
+  color: var(--brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.support-form {
+  display: grid;
+  gap: 12px;
+}
+
+.support-form label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.support-form input,
+.support-form select,
+.support-form textarea {
+  width: 100%;
+  border: 1px solid #d7e4f8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+  background: #fff;
+}
+
+.support-form textarea {
+  resize: vertical;
+  min-height: 120px;
+}
+
+.support-form button {
+  justify-self: start;
+  border: 0;
+  border-radius: 12px;
+  padding: 11px 18px;
+  background: linear-gradient(180deg, #6258ff, #4a40eb);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.support-form-success {
+  margin-bottom: 12px;
+  border: 1px solid #b7e4cb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #f3fbf6, #ffffff);
+  color: #1f6b45;
+  font-size: 0.9rem;
+}
+
+.content-ad-slot,
+.ad-unit {
+  border: 1px dashed #d5e1f5;
+  border-radius: 14px;
+  background: #f8fbff;
+  padding: 12px;
+  min-height: 90px;
+  overflow: hidden;
+}
+
+.home-ad-slot {
+  margin-top: 28px;
+}
+
+.ad-unit-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #8a97b0;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 .final-cta {
   text-align: center;
   margin-top: 28px;
@@ -1280,6 +1498,10 @@ h1 span {
     grid-template-columns: 1fr;
   }
 
+  .support-page-grid {
+    grid-template-columns: 1fr;
+  }
+
   .footer-top {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1316,6 +1538,10 @@ h1 span {
   }
 
   .plan-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-grid-page {
     grid-template-columns: 1fr;
   }
 

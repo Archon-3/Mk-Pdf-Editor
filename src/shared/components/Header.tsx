@@ -10,8 +10,8 @@ export function Header() {
         <nav className="main-links">
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/tools">Tools</NavLink>
-          <a href="/#pricing">Pricing</a>
-          <a href="/#support">Support</a>
+          <NavLink to="/pricing">Pricing</NavLink>
+          <NavLink to="/support">Support</NavLink>
         </nav>
       </div>
     </header>

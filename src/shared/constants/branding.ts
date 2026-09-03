@@ -3,3 +3,4 @@ export const APP_TAGLINE = 'The all-in-one PDF editor trusted by millions worldw
 export const APP_VERSION = '1.0.0'
 export const API_BASE_URL = import.meta.env.VITE_API_URL || ''
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
+export const ADSENSE_CLIENT_ID = import.meta.env.VITE_ADSENSE_CLIENT_ID || ''

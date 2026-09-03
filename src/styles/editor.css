@@ -264,6 +264,112 @@ main:has(.tools-editor-page) {
   min-height: 0;
 }
 
+.editor-status-stack {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: 40;
+  width: min(440px, calc(100% - 32px));
+  transform: translateX(-50%);
+  display: grid;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.editor-status-banner {
+  pointer-events: auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #d7e3f7;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 14px 32px rgba(22, 38, 77, 0.14);
+  color: var(--ink);
+  animation: editor-status-in 0.28s ease;
+}
+
+.editor-status-banner.success {
+  border-color: #b7e4cb;
+  background: linear-gradient(180deg, #f3fbf6, #ffffff);
+}
+
+.editor-status-banner.error {
+  border-color: #f0c3c3;
+  background: linear-gradient(180deg, #fff5f5, #ffffff);
+}
+
+.editor-status-banner.notice {
+  border-color: #d5e1f8;
+  background: linear-gradient(180deg, #f5f8ff, #ffffff);
+}
+
+.editor-status-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #fff;
+  background: #6b7c99;
+  flex-shrink: 0;
+}
+
+.editor-status-banner.success .editor-status-icon {
+  background: linear-gradient(180deg, #39b87a, #2fa870);
+}
+
+.editor-status-banner.error .editor-status-icon {
+  background: linear-gradient(180deg, #e56a6a, #d34848);
+}
+
+.editor-status-banner.notice .editor-status-icon {
+  background: linear-gradient(180deg, #6c62ff, #4d43ec);
+}
+
+.editor-status-copy strong {
+  display: block;
+  font-size: 0.88rem;
+  margin-bottom: 2px;
+}
+
+.editor-status-copy p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.editor-status-dismiss {
+  border: 0;
+  background: transparent;
+  color: #8a97b0;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.editor-status-dismiss:hover {
+  color: var(--ink);
+}
+
+@keyframes editor-status-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .editor-canvas-wrap {
   flex: 1;
   overflow: auto;

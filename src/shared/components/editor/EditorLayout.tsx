@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchToolResult, startToolJob } from '../../../features/pdf-tools'
+import { fetchToolResult, getToolById, startToolJob } from '../../../features/pdf-tools'
 import type { ToolId } from '../../../features/pdf-tools/shared/types'
 import { EditorTopBar } from './EditorTopBar.tsx'
 import { EditorSidebar } from './EditorSidebar.tsx'
@@ -56,6 +56,18 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
   }, [file])
 
   useEffect(() => {
+    if (!successMessage) return
+    const timer = window.setTimeout(() => setSuccessMessage(null), 5200)
+    return () => window.clearTimeout(timer)
+  }, [successMessage])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = window.setTimeout(() => setNotice(null), 4200)
+    return () => window.clearTimeout(timer)
+  }, [notice])
+
+  useEffect(() => {
     if (!file || runRequest === 0) return
 
     const selectedFile = file
@@ -79,7 +91,8 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
         setDownloadUrl(() => nextUrl)
         setDownloadName(retainedDownloadName)
         setResultFile(generatedFile)
-        setSuccessMessage(`${effectiveToolId} completed successfully.`)
+        const toolName = getToolById(effectiveToolId)?.name ?? 'Operation'
+        setSuccessMessage(`${toolName} completed successfully. Your file is ready to download.`)
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'The selected tool could not process this file.'
@@ -168,13 +181,44 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
         <EditorSidebar activeTool={activeSidebarTool} onSelectTool={setActiveSidebarTool} onQuickAction={handleQuickAction} />
 
         <div className="editor-main">
-          {errorMessage && (
-            <div className="editor-status-banner" role="alert">
-              {errorMessage}
-            </div>
-          )}
-          {successMessage && <div className="editor-status-banner success" role="status">{successMessage}</div>}
-          {notice && <div className="editor-status-banner" role="status">{notice}</div>}
+          <div className="editor-status-stack" aria-live="polite">
+            {errorMessage && (
+              <div className="editor-status-banner error" role="alert">
+                <span className="editor-status-icon" aria-hidden="true">!</span>
+                <div className="editor-status-copy">
+                  <strong>Something went wrong</strong>
+                  <p>{errorMessage}</p>
+                </div>
+                <button type="button" className="editor-status-dismiss" onClick={() => setErrorMessage(null)} aria-label="Dismiss error">
+                  ×
+                </button>
+              </div>
+            )}
+            {successMessage && (
+              <div className="editor-status-banner success" role="status">
+                <span className="editor-status-icon" aria-hidden="true">✓</span>
+                <div className="editor-status-copy">
+                  <strong>Done</strong>
+                  <p>{successMessage}</p>
+                </div>
+                <button type="button" className="editor-status-dismiss" onClick={() => setSuccessMessage(null)} aria-label="Dismiss success message">
+                  ×
+                </button>
+              </div>
+            )}
+            {notice && (
+              <div className="editor-status-banner notice" role="status">
+                <span className="editor-status-icon" aria-hidden="true">i</span>
+                <div className="editor-status-copy">
+                  <strong>Notice</strong>
+                  <p>{notice}</p>
+                </div>
+                <button type="button" className="editor-status-dismiss" onClick={() => setNotice(null)} aria-label="Dismiss notice">
+                  ×
+                </button>
+              </div>
+            )}
+          </div>
           <EditorCanvas
             zoom={zoom}
             file={file}

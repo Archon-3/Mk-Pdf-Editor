@@ -4,6 +4,8 @@ import { HomePage } from './pages/home/index.ts'
 import { SignupPage } from './pages/signup/index.ts'
 import { LoginPage } from './pages/login/index.ts'
 import { ToolsListPage, ToolPage } from './pages/tools/index.ts'
+import { PricingPage } from './pages/pricing/index.ts'
+import { SupportPage } from './pages/support/index.ts'
 
 export default function App() {
   return (
@@ -15,6 +17,8 @@ export default function App() {
           <Route path="login" element={<LoginPage />} />
           <Route path="tools" element={<ToolsListPage />} />
           <Route path="tools/:toolId" element={<ToolPage />} />
+          <Route path="pricing" element={<PricingPage />} />
+          <Route path="support" element={<SupportPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
