@@ -1,16 +1,50 @@
 import { useEffect, useRef, useState } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import * as mammoth from 'mammoth/mammoth.browser'
+import { previewOfficeFile } from '../../api/client'
 
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 
 type PreviewState =
   | { kind: 'empty' }
-  | { kind: 'pdf'; url: string; text?: string }
+  | { kind: 'pdf'; url: string; file: File; text?: string }
   | { kind: 'image'; url: string }
   | { kind: 'document'; html: string }
   | { kind: 'text'; text: string }
   | { kind: 'unsupported' }
+
+function PdfPagesPreview({ file }: { file: File }) {
+  const [pageCount, setPageCount] = useState(0)
+  const canvasRefs = useRef<Array<HTMLCanvasElement | null>>([])
+
+  useEffect(() => {
+    let cancelled = false
+    async function renderPages() {
+      const document = await getDocument({ data: await file.arrayBuffer() }).promise
+      if (cancelled) return
+      setPageCount(document.numPages)
+      for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+        const page = await document.getPage(pageNumber)
+        const viewport = page.getViewport({ scale: 1.15 })
+        const canvas = canvasRefs.current[pageNumber - 1]
+        if (!canvas || cancelled) continue
+        canvas.width = viewport.width
+        canvas.height = viewport.height
+        await page.render({ canvas, canvasContext: canvas.getContext('2d')!, viewport }).promise
+      }
+    }
+    renderPages().catch(() => setPageCount(0))
+    return () => { cancelled = true }
+  }, [file])
+
+  return (
+    <div className="pdf-pages" aria-label="PDF pages">
+      {Array.from({ length: pageCount }, (_, index) => (
+        <canvas key={index} ref={(canvas) => { canvasRefs.current[index] = canvas }} className="pdf-page-preview" />
+      ))}
+    </div>
+  )
+}
 
 type ToolbarTool = 'select' | 'text' | 'textbox' | 'draw' | 'image' | 'undo' | 'crop' | 'split' | 'page' | 'link' | 'signature'
 
@@ -18,7 +52,11 @@ type EditorCanvasProps = {
   zoom: number
   file: File | null
   fileName: string | null
+  files?: File[]
   onUpload: (file: File) => void
+  onUploadMultiple?: (files: File[]) => void
+  onOperationOptionsChange?: (options: Record<string, unknown>) => void
+  onRunOperation?: () => void
   activeSidebarTool?: string | null
   activeToolbarTool?: ToolbarTool
 }
@@ -80,7 +118,11 @@ export function EditorCanvas({
   zoom,
   file,
   fileName,
+  files = file ? [file] : [],
   onUpload,
+  onUploadMultiple,
+  onOperationOptionsChange,
+  onRunOperation,
   activeSidebarTool = null,
   activeToolbarTool = 'select',
 }: EditorCanvasProps) {
@@ -138,12 +180,12 @@ export function EditorCanvas({
         try {
           const text = await extractPdfText(currentFile)
           if (!cancelled) {
-            setPreview({ kind: 'pdf', url: objectUrl, text })
+            setPreview({ kind: 'pdf', url: objectUrl, file: currentFile, text })
             setEditableText(text)
           }
         } catch {
           if (!cancelled) {
-            setPreview({ kind: 'pdf', url: objectUrl, text: '' })
+            setPreview({ kind: 'pdf', url: objectUrl, file: currentFile, text: '' })
             setEditableText('')
           }
         }
@@ -156,6 +198,19 @@ export function EditorCanvas({
           setPreview({ kind: 'image', url: objectUrl })
         }
         return
+      }
+
+      if (/\.(docx?|xls|xlsx|ppt|pptx)$/i.test(lowerName)) {
+        try {
+          const previewBlob = await previewOfficeFile(currentFile)
+          const previewFile = new File([previewBlob], `${currentFile.name}.preview.pdf`, { type: 'application/pdf' })
+          const previewUrl = URL.createObjectURL(previewFile)
+          objectUrl = previewUrl
+          if (!cancelled) setPreview({ kind: 'pdf', url: previewUrl, file: previewFile })
+          return
+        } catch {
+          // Fall through to the structural preview when no Office renderer is available.
+        }
       }
 
       if (/\.(docx?|odt|rtf|txt|md|csv)$/i.test(lowerName)) {
@@ -206,9 +261,77 @@ export function EditorCanvas({
   }, [file])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) onUpload(file)
+    const selectedFiles = Array.from(e.target.files ?? [])
+    if (selectedFiles.length === 1) onUpload(selectedFiles[0])
+    else if (selectedFiles.length > 1) onUploadMultiple?.(selectedFiles)
     e.target.value = ''
+  }
+
+  const operationControls = () => {
+    const tool = String(activeSidebarTool ?? '')
+    if (!file) return null
+    if (tool === 'merge') {
+      return <span className="viewer-editing-indicator">{files.length} PDF file(s) selected</span>
+    }
+    if (tool === 'split') {
+      return (
+        <label className="viewer-editing-indicator">
+          Split page groups (example: 1-3;4)
+          <input type="text" defaultValue="" onChange={(event) => onOperationOptionsChange?.({ pages: event.target.value })} />
+        </label>
+      )
+    }
+    if (tool === 'rotate') {
+      return (
+        <label className="viewer-editing-indicator">
+          Rotation
+          <select defaultValue="90" onChange={(event) => onOperationOptionsChange?.({ angle: Number(event.target.value) })}>
+            <option value="90">90 degrees</option><option value="180">180 degrees</option><option value="270">270 degrees</option>
+          </select>
+        </label>
+      )
+    }
+    if (tool === 'delete-pages') {
+      return (
+        <label className="viewer-editing-indicator">
+          Delete page number
+          <input type="number" min="1" defaultValue="1" onChange={(event) => onOperationOptionsChange?.({ page: Number(event.target.value) })} />
+        </label>
+      )
+    }
+    if (tool === 'page-rearrangement') {
+      return (
+        <label className="viewer-editing-indicator">
+          Page order (example: 2,1,3)
+          <input type="text" defaultValue="" onChange={(event) => onOperationOptionsChange?.({ order: event.target.value })} />
+        </label>
+      )
+    }
+    if (tool === 'watermark') {
+      return (
+        <label className="viewer-editing-indicator">
+          Watermark text
+          <input type="text" defaultValue="MK PDF" onChange={(event) => onOperationOptionsChange?.({ text: event.target.value })} />
+        </label>
+      )
+    }
+    if (tool === 'annotation' || tool === 'signature') {
+      return (
+        <label className="viewer-editing-indicator">
+          Note text
+          <input type="text" defaultValue="MK PDF note" onChange={(event) => onOperationOptionsChange?.({ text: event.target.value })} />
+        </label>
+      )
+    }
+    if (tool === 'redaction') {
+      return (
+        <label className="viewer-editing-indicator">
+          Text to redact
+          <input type="text" defaultValue="" onChange={(event) => onOperationOptionsChange?.({ text: event.target.value })} />
+        </label>
+      )
+    }
+    return null
   }
 
   const renderViewer = () => {
@@ -217,7 +340,8 @@ export function EditorCanvas({
         <label className="page-upload">
           <input
             type="file"
-            accept=".pdf,.doc,.docx,.txt,.rtf,.md,.csv,image/*"
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.md,image/*"
+            multiple={activeSidebarTool === 'merge' || activeSidebarTool === 'image-to-pdf'}
             onChange={handleFileChange}
             hidden
           />
@@ -232,6 +356,7 @@ export function EditorCanvas({
     }
 
     const currentToolLabel = activeSidebarTool ?? activeToolbarTool ?? 'select'
+    const isMergeReady = activeSidebarTool !== 'merge' || files.length >= 2
 
     return (
       <div className="document-viewer" data-testid="document-viewer">
@@ -239,9 +364,25 @@ export function EditorCanvas({
           <span className="viewer-type-badge">{file.type || 'document'}</span>
           <span className="viewer-file-name">{file.name}</span>
           <span className="viewer-editing-indicator">Editable mode • {currentToolLabel}</span>
+          {operationControls()}
+          <label className="editor-file-add-btn">
+            {activeSidebarTool === 'merge' ? 'Upload another PDF' : 'Replace file'}
+            <input
+              type="file"
+              accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.rtf,.md,image/*"
+              multiple={activeSidebarTool === 'merge' || activeSidebarTool === 'image-to-pdf'}
+              onChange={handleFileChange}
+              hidden
+            />
+          </label>
+          <button type="button" className="editor-run-btn" onClick={onRunOperation} disabled={!isMergeReady}>
+            {isMergeReady ? `Run ${currentToolLabel}` : 'Select 2 PDFs'}
+          </button>
         </div>
 
-        {(preview.kind === 'pdf' || preview.kind === 'document' || preview.kind === 'text') && (
+        {preview.kind === 'pdf' && <PdfPagesPreview file={preview.file} />}
+
+        {(preview.kind === 'document' || preview.kind === 'text') && (
           <label className="editable-panel full-height">
             <span>Edit document</span>
             <textarea

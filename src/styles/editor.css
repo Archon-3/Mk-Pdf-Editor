@@ -333,6 +333,49 @@ main:has(.tools-editor-page) {
   word-break: break-all;
 }
 
+.editor-app .editor-file-add-btn,
+.editor-app .editor-run-btn {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid #cbd8ee;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--brand);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.editor-app .editor-run-btn {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: #fff;
+}
+
+.editor-app .editor-run-btn:disabled {
+  border-color: #cbd8ee;
+  background: #e7edf7;
+  color: #7b89a5;
+  cursor: not-allowed;
+}
+
+.editor-app .pdf-pages {
+  display: grid;
+  gap: 18px;
+  justify-items: center;
+}
+
+.editor-app .pdf-page-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid #dfe7f5;
+  box-shadow: 0 4px 16px rgba(22, 38, 77, 0.1);
+}
+
 .editor-app .pdf-frame {
   width: 100%;
   min-height: 760px;

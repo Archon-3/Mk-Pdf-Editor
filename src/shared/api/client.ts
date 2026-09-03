@@ -16,10 +16,15 @@ export async function fetchAPI<T>(endpoint: string, options?: RequestInit): Prom
   return response.json() as Promise<T>
 }
 
-export async function uploadFile(file: File, toolId: string): Promise<{ jobId: string; downloadUrl: string; filename: string }> {
+export async function uploadFile(
+  files: File[],
+  toolId: string,
+  options: Record<string, unknown> = {},
+): Promise<{ jobId: string; downloadUrl: string; filename: string }> {
   const formData = new FormData()
-  formData.append('file', file)
+  files.forEach((file) => formData.append('file', file))
   formData.append('toolId', toolId)
+  formData.append('options', JSON.stringify(options))
 
   const response = await fetch(`${API_BASE_URL}/api/upload`, {
     method: 'POST',
@@ -35,7 +40,7 @@ export async function uploadFile(file: File, toolId: string): Promise<{ jobId: s
   return {
     jobId: data.job_id || data.jobId,
     downloadUrl: data.download_url || data.downloadUrl,
-    filename: data.filename || file.name,
+    filename: data.filename || files[0]?.name || 'document',
   }
 }
 
@@ -46,5 +51,13 @@ export async function downloadFile(jobId: string): Promise<Blob> {
     throw new Error('Download failed')
   }
 
+  return response.blob()
+}
+
+export async function previewOfficeFile(file: File): Promise<Blob> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const response = await fetch(`${API_BASE_URL}/api/preview`, { method: 'POST', body: formData })
+  if (!response.ok) throw new Error('Visual preview unavailable')
   return response.blob()
 }

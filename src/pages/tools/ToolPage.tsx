@@ -15,5 +15,9 @@ export function ToolPage() {
     )
   }
 
-  return <EditorLayout initialToolId={tool.id} />
+  return (
+    <div className="tools-editor-page">
+      <EditorLayout initialToolId={tool.id} />
+    </div>
+  )
 }
