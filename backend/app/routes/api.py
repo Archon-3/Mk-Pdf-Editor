@@ -1,4 +1,8 @@
 import os
+import json
+import io
+import tempfile
+from pathlib import Path
 
 from flask import Blueprint, jsonify, request, send_file
 
@@ -6,6 +10,9 @@ from backend.app.services.files.validation import validate_uploaded_file
 from backend.app.services.files.upload import save_uploaded_file
 from backend.app.services.processing_engine import ProcessingEngine
 from backend.app.services.tool_registry import TOOL_CATALOG
+from backend.app.services.conversion.excel_to_pdf import excel_to_pdf
+from backend.app.services.conversion.powerpoint_to_pdf import powerpoint_to_pdf
+from backend.app.services.conversion.word_to_pdf import word_to_pdf
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -23,24 +30,58 @@ def tools():
     })
 
 
+@bp.post('/preview')
+def preview():
+    uploaded_file = request.files.get('file')
+    if not uploaded_file or not uploaded_file.filename:
+        return jsonify({"success": False, "error": {"code": "NO_FILE", "message": "No file uploaded."}}), 400
+
+    suffix = Path(uploaded_file.filename).suffix.lower()
+    if suffix == '.pdf':
+        return send_file(uploaded_file.stream, mimetype='application/pdf')
+    if suffix not in {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'}:
+        return jsonify({"success": False, "error": {"code": "UNSUPPORTED_PREVIEW", "message": "This file type has no visual preview."}}), 400
+
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        source = Path(temporary_directory) / f'input{suffix}'
+        output = Path(temporary_directory) / 'preview.pdf'
+        uploaded_file.save(source)
+        converter = word_to_pdf if suffix in {'.doc', '.docx'} else excel_to_pdf if suffix in {'.xls', '.xlsx'} else powerpoint_to_pdf
+        converter(source, output)
+        return send_file(io.BytesIO(output.read_bytes()), mimetype='application/pdf', download_name='preview.pdf')
+
+
 @bp.post('/upload')
 def upload():
     if 'file' not in request.files:
         return jsonify({"success": False, "error": {"code": "NO_FILE", "message": "No file uploaded."}}), 400
 
-    uploaded_file = request.files['file']
+    uploaded_files = request.files.getlist('file')
+    uploaded_file = uploaded_files[0] if uploaded_files else None
     tool_id = (request.form.get('toolId') or '').strip()
+    try:
+        options = json.loads(request.form.get('options') or '{}')
+    except json.JSONDecodeError:
+        return jsonify({"success": False, "error": {"code": "INVALID_OPTIONS", "message": "Tool options are invalid."}}), 400
 
-    validation = validate_uploaded_file(uploaded_file, tool_id)
-    if not validation['valid']:
-        return jsonify({"success": False, "error": {"code": validation['code'], "message": validation['message']}}), 400
+    for candidate in uploaded_files:
+        validation = validate_uploaded_file(candidate, tool_id)
+        if not validation['valid']:
+            return jsonify({"success": False, "error": {"code": validation['code'], "message": validation['message']}}), 400
 
     save_result = save_uploaded_file(uploaded_file, tool_id)
     if not save_result['success']:
         return jsonify({"success": False, "error": {"code": save_result['code'], "message": save_result['message']}}), 400
 
+    input_paths = [save_result['path']]
+    for candidate in uploaded_files[1:]:
+        extra_result = save_uploaded_file(candidate, tool_id)
+        if not extra_result['success']:
+            return jsonify({"success": False, "error": {"code": extra_result['code'], "message": extra_result['message']}}), 400
+        input_paths.append(extra_result['path'])
+
     engine = ProcessingEngine()
-    job_result = engine.process(tool_id, save_result['path'], job_id=save_result['job_id'])
+    job_result = engine.process(tool_id, input_paths, options=options, job_id=save_result['job_id'])
 
     if not job_result.success:
         return jsonify({"success": False, "error": {"code": "PROCESSING_FAILED", "message": job_result.error}}), 400
@@ -49,7 +90,7 @@ def upload():
         "success": True,
         "job_id": job_result.job_id,
         "status": "uploaded",
-        "filename": save_result['filename'],
+        "filename": Path(job_result.output_path).name if job_result.output_path else save_result['filename'],
         "download_url": job_result.download_url,
     })
 
