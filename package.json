@@ -7,8 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "dev:backend": "npm --prefix backend run dev",
-    "start:backend": "npm --prefix backend run start"
+    "dev:backend": "python -c \"from backend.app import create_app; create_app().run(host='0.0.0.0', port=8000, debug=True)\"",
+    "start:backend": "python -c \"from backend.app import create_app; create_app().run(host='0.0.0.0', port=8000, debug=False)\""
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
