@@ -4,9 +4,10 @@ from pathlib import Path
 
 import fitz
 from openpyxl import Workbook
+from openpyxl.drawing.image import Image as SpreadsheetImage
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
-from backend.app.services.pdf.structure import extract_tables, page_reading_items
+from backend.app.services.pdf.structure import collect_page_images, extract_tables, page_reading_items
 
 
 def _autosize(sheet) -> None:
@@ -132,11 +133,35 @@ def pdf_to_excel(input_path: str | Path, output_path: str | Path) -> str:
                         sheet.cell(row=cursor, column=1, value=line)
                         cursor += 1
 
+            # Embed real PDF images (not full-page screenshots) under the data.
+            page_images = collect_page_images(document, page)
+            if page_images:
+                cursor += 2
+                sheet.cell(row=cursor, column=1, value='Images').font = Font(bold=True, color='4134EA')
+                cursor += 1
+                for image_index, image_block in enumerate(page_images, start=1):
+                    if not image_block.image_bytes:
+                        continue
+                    image_path = output.with_name(f'.page-{page_number}-img-{image_index}.{image_block.image_ext or "png"}')
+                    image_path.write_bytes(image_block.image_bytes)
+                    try:
+                        excel_image = SpreadsheetImage(str(image_path))
+                        excel_image.anchor = f'A{cursor}'
+                        # Keep images readable but not gigantic.
+                        excel_image.width = min(getattr(excel_image, 'width', 320) or 320, 420)
+                        excel_image.height = min(getattr(excel_image, 'height', 240) or 240, 320)
+                        sheet.add_image(excel_image)
+                        cursor += 18
+                    except Exception:
+                        sheet.cell(row=cursor, column=1, value=f'[Image {image_index} could not be embedded]')
+                        cursor += 1
+
             _autosize(sheet)
-            # Keep a usable freeze for table browsing.
             sheet.freeze_panes = 'A2'
 
     if not workbook.sheetnames:
         workbook.create_sheet('Page 1')
     workbook.save(output)
+    for snapshot_path in output.parent.glob('.page-*-img-*.*'):
+        snapshot_path.unlink(missing_ok=True)
     return str(output)

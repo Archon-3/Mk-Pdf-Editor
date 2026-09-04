@@ -69,14 +69,33 @@ def _add_text_block(document: Document, block: TextBlock, page_width: float) -> 
 def _add_image_block(document: Document, block: TextBlock, page_width_pt: float) -> None:
     if not block.image_bytes:
         return
+    ext = (block.image_ext or 'png').lower().lstrip('.')
+    if ext == 'jpeg':
+        ext = 'jpg'
     stream = io.BytesIO(block.image_bytes)
-    stream.name = f'image.{block.image_ext or "png"}'
+    stream.name = f'image.{ext}'
     paragraph = document.add_paragraph()
+    paragraph.paragraph_format.space_before = Pt(6)
+    paragraph.paragraph_format.space_after = Pt(8)
     run = paragraph.add_run()
-    width_in = max(0.6, min(6.8, (block.bbox[2] - block.bbox[0]) / 72.0))
-    # Keep images from overflowing typical content width.
-    max_width = max(4.5, min(7.0, page_width_pt / 72.0 - 1.0))
-    run.add_picture(stream, width=Inches(min(width_in, max_width)))
+    width_in = max(0.8, min(6.8, (block.bbox[2] - block.bbox[0]) / 72.0))
+    max_width = max(3.5, min(7.0, page_width_pt / 72.0 - 1.0))
+    try:
+        run.add_picture(stream, width=Inches(min(width_in, max_width)))
+    except Exception:
+        # Last-resort: re-encode as PNG if Word rejects the original bytes.
+        try:
+            from PIL import Image as PILImage
+
+            stream.seek(0)
+            with PILImage.open(stream) as image:
+                converted = io.BytesIO()
+                image.convert('RGBA').save(converted, format='PNG')
+                converted.seek(0)
+                converted.name = 'image.png'
+                run.add_picture(converted, width=Inches(min(width_in, max_width)))
+        except Exception:
+            return
 
 
 def _add_table(document: Document, table: TableBlock) -> None:

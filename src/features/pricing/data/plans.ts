@@ -5,7 +5,7 @@ export type BillingPeriod = 'monthly' | 'annual'
 export const pricingFaqs = [
   {
     question: 'Can I switch plans later?',
-    answer: 'Yes. You can move between Free and Pro at any time. Pro billing updates on your next renewal cycle.',
+    answer: 'Yes. You can move between Free, Pro Monthly, and Pro Annual at any time. Pro billing updates on your next renewal cycle.',
   },
   {
     question: 'What payment methods do you accept?',
@@ -13,62 +13,12 @@ export const pricingFaqs = [
   },
   {
     question: 'Is there a free trial for Pro?',
-    answer: 'The Free plan includes all core tools with standard limits. Upgrade to Pro when you need larger files and priority processing.',
+    answer: 'The Free plan includes all core tools with standard limits. Upgrade to Pro Monthly or Pro Annual when you need larger files and priority processing.',
   },
 ]
 
-export const monthlyPlans: Plan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    period: '/ forever',
-    details: 'Basic features included',
-    features: ['All tools access', 'Up to 50MB per file', 'Standard processing speed', 'Web-based access'],
-    cta: 'Get Started',
-    checkout: 'free',
-  },
-  {
-    id: 'pro_monthly',
-    name: 'Pro',
-    price: '$9.99',
-    period: '/ month',
-    badge: 'Most Popular',
-    details: 'Billed monthly via PayPal',
-    features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
-    cta: 'Upgrade to Pro',
-    featured: true,
-    checkout: 'paypal',
-  },
-]
-
-export const annualPlans: Plan[] = [
-  {
-    id: 'free',
-    name: 'Free',
-    price: '$0',
-    period: '/ forever',
-    details: 'Basic features included',
-    features: ['All tools access', 'Up to 50MB per file', 'Standard processing speed', 'Web-based access'],
-    cta: 'Get Started',
-    checkout: 'free',
-  },
-  {
-    id: 'pro_annual',
-    name: 'Pro',
-    price: '$59.99',
-    period: '/ year',
-    badge: 'Best Value',
-    details: 'Billed annually via PayPal · save ~50%',
-    features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
-    cta: 'Upgrade to Pro',
-    featured: true,
-    checkout: 'paypal',
-  },
-]
-
-/** Home page keeps three static cards for the marketing layout. */
-export const homePlans: Plan[] = [
+/** Pricing page always shows Free + Monthly + Annual together. */
+export const pricingPagePlans: Plan[] = [
   {
     id: 'free',
     name: 'Free',
@@ -87,7 +37,7 @@ export const homePlans: Plan[] = [
     badge: 'Most Popular',
     details: 'Billed monthly via PayPal',
     features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
-    cta: 'Upgrade to Pro',
+    cta: 'Upgrade Monthly',
     featured: true,
     checkout: 'paypal',
   },
@@ -96,12 +46,26 @@ export const homePlans: Plan[] = [
     name: 'Pro Annual',
     price: '$59.99',
     period: '/ year',
-    details: 'Billed annually via PayPal',
+    badge: 'Best Value',
+    details: 'Billed annually via PayPal · save ~50%',
     features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
-    cta: 'Upgrade to Pro',
+    cta: 'Upgrade Annual',
     checkout: 'paypal',
   },
 ]
+
+export const monthlyPlans: Plan[] = [
+  pricingPagePlans[0],
+  pricingPagePlans[1],
+]
+
+export const annualPlans: Plan[] = [
+  pricingPagePlans[0],
+  pricingPagePlans[2],
+]
+
+/** Home page keeps three static cards for the marketing layout. */
+export const homePlans: Plan[] = [...pricingPagePlans]
 
 export function getPlansForPeriod(period: BillingPeriod): Plan[] {
   return period === 'annual' ? annualPlans : monthlyPlans

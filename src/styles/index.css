@@ -646,6 +646,11 @@ h1 span {
   max-width: 720px;
 }
 
+.plan-grid-page.plan-grid-three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 980px;
+}
+
 .content-faq-block,
 .support-contact {
   border: 1px solid #dce9fb;
