@@ -79,6 +79,43 @@ main:has(.tools-editor-page) {
   color: var(--ink);
 }
 
+.editor-app .plan-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.editor-app .plan-chip.free {
+  background: #eef2f8;
+  color: #5a6a8e;
+}
+
+.editor-app .plan-chip.pro {
+  background: #e8f6ee;
+  color: #1b7a45;
+}
+
+.editor-app .plan-chip.dev {
+  background: #fff4e5;
+  color: #9a5b00;
+}
+
+.editor-app .plan-upgrade-link {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--accent, #2563eb);
+  text-decoration: none;
+}
+
+.editor-app .plan-upgrade-link:hover {
+  text-decoration: underline;
+}
+
 .editor-app .editor-icon-btn {
   display: grid;
   place-items: center;

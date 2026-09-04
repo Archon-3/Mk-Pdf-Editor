@@ -9,7 +9,7 @@ def create_app() -> Flask:
 
     app = Flask(__name__)
     app.config.update(
-        MAX_CONTENT_LENGTH=50 * 1024 * 1024,
+        MAX_CONTENT_LENGTH=2 * 1024 * 1024 * 1024,
         UPLOAD_FOLDER='backend/uploads',
         OUTPUT_FOLDER='backend/output',
         SECRET_KEY='docuforge-dev-secret',

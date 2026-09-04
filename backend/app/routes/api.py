@@ -12,6 +12,7 @@ from backend.app.services.processing_engine import ProcessingEngine
 from backend.app.services.tool_registry import TOOL_CATALOG
 from backend.app.services.conversion.office_preview_html import office_to_preview_html
 from backend.app.services.conversion.office_renderer import has_libreoffice, render_office_to_pdf
+from backend.app.services.plans.limits import check_and_consume_job, limits_for, validate_plan_constraints
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -62,6 +63,12 @@ def preview():
         return Response(html, mimetype='text/html; charset=utf-8')
 
 
+@bp.get('/plan/limits')
+def plan_limits():
+    plan_id = (request.args.get('planId') or request.headers.get('X-MK-Plan') or 'free').strip()
+    return jsonify({'success': True, **limits_for(plan_id)})
+
+
 @bp.post('/upload')
 def upload():
     if 'file' not in request.files:
@@ -70,6 +77,9 @@ def upload():
     uploaded_files = request.files.getlist('file')
     uploaded_file = uploaded_files[0] if uploaded_files else None
     tool_id = (request.form.get('toolId') or '').strip()
+    plan_id = (request.form.get('planId') or request.headers.get('X-MK-Plan') or 'free').strip()
+    client_key = (request.headers.get('X-MK-Client') or request.remote_addr or 'anonymous').strip()
+
     try:
         options = json.loads(request.form.get('options') or '{}')
     except json.JSONDecodeError:
@@ -79,6 +89,26 @@ def upload():
         validation = validate_uploaded_file(candidate, tool_id)
         if not validation['valid']:
             return jsonify({"success": False, "error": {"code": validation['code'], "message": validation['message']}}), 400
+
+    file_sizes: list[int] = []
+    for candidate in uploaded_files:
+        candidate.stream.seek(0, os.SEEK_END)
+        size = candidate.stream.tell()
+        candidate.stream.seek(0)
+        file_sizes.append(size)
+
+    plan_check = validate_plan_constraints(
+        plan_id=plan_id,
+        file_sizes=file_sizes,
+        tool_id=tool_id,
+        file_count=len(uploaded_files),
+    )
+    if not plan_check['valid']:
+        return jsonify({"success": False, "error": {"code": plan_check['code'], "message": plan_check['message']}, "limits": plan_check.get('limits')}), 403
+
+    usage = check_and_consume_job(client_key, plan_id)
+    if not usage['allowed']:
+        return jsonify({"success": False, "error": {"code": usage['code'], "message": usage['message']}, "limits": usage.get('limits')}), 403
 
     save_result = save_uploaded_file(uploaded_file, tool_id)
     if not save_result['success']:
@@ -103,6 +133,8 @@ def upload():
         "status": "uploaded",
         "filename": Path(job_result.output_path).name if job_result.output_path else save_result['filename'],
         "download_url": job_result.download_url,
+        "plan": plan_check.get('limits'),
+        "usage": {"used": usage.get('used'), "limit": usage.get('limit')},
     })
 
 

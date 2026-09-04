@@ -785,6 +785,66 @@ h1 span {
   text-transform: uppercase;
 }
 
+.legal-updated {
+  margin-top: 8px;
+  color: #7a879f;
+  font-size: 0.86rem;
+}
+
+.legal-sections {
+  display: grid;
+  gap: 14px;
+}
+
+.legal-card {
+  border: 1px solid #dce9fb;
+  border-radius: 16px;
+  background: #fff;
+  padding: 18px 20px;
+}
+
+.legal-card h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.legal-card p {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.55;
+}
+
+.role-type {
+  margin: 0 0 8px !important;
+  color: var(--brand) !important;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.text-link {
+  display: inline-block;
+  margin-top: 12px;
+  color: var(--brand);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.text-link:hover {
+  text-decoration: underline;
+}
+
+.newsletter form {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.newsletter-status {
+  margin: 8px 0 0;
+  color: #9db0d4;
+  font-size: 0.82rem;
+}
+
 .final-cta {
   text-align: center;
   margin-top: 28px;
@@ -845,6 +905,7 @@ h1 span {
   color: #c5d2f2;
 }
 
+.newsletter form,
 .newsletter div {
   margin-top: 10px;
   display: flex;
