@@ -205,7 +205,7 @@ class ProcessingEngine:
                         for rectangle in page.search_for(search_text):
                             page.add_redact_annot(rectangle, fill=(1, 1, 1))
                         page.apply_redactions()
-            document.save(output_path, garbage=4, deflate=True)
+            document.save(output_path, garbage=4, deflate=True, deflate_images=True, deflate_fonts=True)
         return str(output_path)
 
     def get_status(self, job_id: str) -> Dict[str, Any]:

@@ -4,15 +4,14 @@ import io
 import tempfile
 from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, Response, jsonify, request, send_file
 
 from backend.app.services.files.validation import validate_uploaded_file
 from backend.app.services.files.upload import save_uploaded_file
 from backend.app.services.processing_engine import ProcessingEngine
 from backend.app.services.tool_registry import TOOL_CATALOG
-from backend.app.services.conversion.excel_to_pdf import excel_to_pdf
-from backend.app.services.conversion.powerpoint_to_pdf import powerpoint_to_pdf
-from backend.app.services.conversion.word_to_pdf import word_to_pdf
+from backend.app.services.conversion.office_preview_html import office_to_preview_html
+from backend.app.services.conversion.office_renderer import has_libreoffice, render_office_to_pdf
 
 bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -39,16 +38,28 @@ def preview():
     suffix = Path(uploaded_file.filename).suffix.lower()
     if suffix == '.pdf':
         return send_file(uploaded_file.stream, mimetype='application/pdf')
-    if suffix not in {'.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx'}:
+    if suffix not in {'.doc', '.docx', '.xls', '.xlsx', '.csv', '.ppt', '.pptx'}:
         return jsonify({"success": False, "error": {"code": "UNSUPPORTED_PREVIEW", "message": "This file type has no visual preview."}}), 400
 
     with tempfile.TemporaryDirectory() as temporary_directory:
         source = Path(temporary_directory) / f'input{suffix}'
         output = Path(temporary_directory) / 'preview.pdf'
         uploaded_file.save(source)
-        converter = word_to_pdf if suffix in {'.doc', '.docx'} else excel_to_pdf if suffix in {'.xls', '.xlsx'} else powerpoint_to_pdf
-        converter(source, output)
-        return send_file(io.BytesIO(output.read_bytes()), mimetype='application/pdf', download_name='preview.pdf')
+
+        if has_libreoffice():
+            rendered = render_office_to_pdf(source, output)
+            if rendered and output.exists():
+                return send_file(io.BytesIO(output.read_bytes()), mimetype='application/pdf', download_name='preview.pdf')
+
+        try:
+            html = office_to_preview_html(source)
+        except Exception as error:
+            return jsonify({
+                "success": False,
+                "error": {"code": "PREVIEW_FAILED", "message": f"Could not build a structural preview: {error}"},
+            }), 500
+
+        return Response(html, mimetype='text/html; charset=utf-8')
 
 
 @bp.post('/upload')

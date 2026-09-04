@@ -4,27 +4,105 @@ import io
 from pathlib import Path
 from typing import Any, Dict, List
 
-import fitz
-from PIL import Image
 from docx import Document
-from docx.shared import Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml.ns import qn
+from docx.shared import Inches, Pt, RGBColor
+from docx.oxml import OxmlElement
+
+import fitz
+
+from backend.app.services.pdf.structure import TextBlock, TableBlock, page_reading_items
 
 
-def _render_pdf_page_to_image(page: fitz.Page, scale: float = 1.25) -> bytes:
-    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
-
-    if hasattr(pix, 'pil_image'):
-        image = pix.pil_image()
+def _set_run_font(run, span) -> None:
+    run.bold = span.bold
+    run.italic = span.italic
+    run.font.size = Pt(max(8, min(span.size, 48)))
+    run.font.color.rgb = RGBColor(*span.color)
+    # Map common PDF fonts loosely to Word-safe families.
+    font_name = (span.font or '').lower()
+    if 'courier' in font_name or 'mono' in font_name:
+        run.font.name = 'Courier New'
+    elif 'times' in font_name or 'serif' in font_name:
+        run.font.name = 'Times New Roman'
     else:
-        image = Image.frombytes('RGB', (pix.width, pix.height), pix.samples)
+        run.font.name = 'Calibri'
+    # Ensure East Asian / complex scripts pick the same ASCII font where possible.
+    try:
+        run._element.rPr.rFonts.set(qn('w:eastAsia'), run.font.name)
+    except Exception:
+        pass
 
-    buffer = io.BytesIO()
-    image.save(buffer, format='PNG')
-    return buffer.getvalue()
+
+def _set_cell_shading(cell, fill_hex: str = 'F3F6FB') -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    shading = OxmlElement('w:shd')
+    shading.set(qn('w:fill'), fill_hex)
+    shading.set(qn('w:val'), 'clear')
+    tc_pr.append(shading)
 
 
-def build_docx_from_pdf(pdf_path: str | Path, output_path: str | Path, page_scale: float = 1.25) -> str:
-    """Preserve PDF visuals by rendering each page as an image in the DOCX."""
+def _add_text_block(document: Document, block: TextBlock, page_width: float) -> None:
+    for line in block.lines:
+        paragraph = document.add_paragraph()
+        paragraph.paragraph_format.space_after = Pt(2)
+        paragraph.paragraph_format.space_before = Pt(0)
+
+        # Rough alignment from horizontal position.
+        left_gap = line.bbox[0]
+        right_gap = page_width - line.bbox[2]
+        if abs(left_gap - right_gap) < 36 and left_gap > 72:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        elif right_gap < 54 and left_gap > 120:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        else:
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
+
+        for span in line.spans:
+            if not span.text:
+                continue
+            run = paragraph.add_run(span.text)
+            _set_run_font(run, span)
+
+
+def _add_image_block(document: Document, block: TextBlock, page_width_pt: float) -> None:
+    if not block.image_bytes:
+        return
+    stream = io.BytesIO(block.image_bytes)
+    stream.name = f'image.{block.image_ext or "png"}'
+    paragraph = document.add_paragraph()
+    run = paragraph.add_run()
+    width_in = max(0.6, min(6.8, (block.bbox[2] - block.bbox[0]) / 72.0))
+    # Keep images from overflowing typical content width.
+    max_width = max(4.5, min(7.0, page_width_pt / 72.0 - 1.0))
+    run.add_picture(stream, width=Inches(min(width_in, max_width)))
+
+
+def _add_table(document: Document, table: TableBlock) -> None:
+    row_count = len(table.rows)
+    col_count = max((len(row) for row in table.rows), default=1)
+    word_table = document.add_table(rows=row_count, cols=col_count)
+    word_table.style = 'Table Grid'
+    for row_index, row_values in enumerate(table.rows):
+        for col_index in range(col_count):
+            value = row_values[col_index] if col_index < len(row_values) else ''
+            cell = word_table.rows[row_index].cells[col_index]
+            cell.text = value
+            if row_index == 0:
+                _set_cell_shading(cell)
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.bold = True
+    document.add_paragraph()
+
+
+def build_docx_from_pdf(pdf_path: str | Path, output_path: str | Path, page_scale: float = 1.5) -> str:
+    """
+    Build a fully editable DOCX from PDF structure:
+    styled text runs, tables, and embedded images — never full-page screenshots.
+    """
+    del page_scale  # kept for call-site compatibility
     source = Path(pdf_path)
     output = Path(output_path)
     document = Document()
@@ -34,30 +112,34 @@ def build_docx_from_pdf(pdf_path: str | Path, output_path: str | Path, page_scal
             raise ValueError('PDF contains no pages.')
 
         for page_index, page in enumerate(pdf_document):
-            page_text = page.get_text().strip()
-            if page_text:
-                text_paragraph = document.add_paragraph()
-                text_paragraph.add_run(page_text)
+            section = document.sections[0] if page_index == 0 else document.add_section()
+            section.page_width = Inches(page.rect.width / 72.0)
+            section.page_height = Inches(page.rect.height / 72.0)
+            section.left_margin = Inches(0.6)
+            section.right_margin = Inches(0.6)
+            section.top_margin = Inches(0.5)
+            section.bottom_margin = Inches(0.5)
 
-            image_bytes = _render_pdf_page_to_image(page, scale=page_scale)
-            image_stream = io.BytesIO(image_bytes)
-            image_stream.name = f'page-{page_index + 1}.png'
+            items = page_reading_items(pdf_document, page)
+            if not items:
+                fallback = (page.get_text('text') or '').strip()
+                if fallback:
+                    for line in fallback.splitlines():
+                        if line.strip():
+                            document.add_paragraph(line.strip())
+                else:
+                    document.add_paragraph('[Empty page]')
+                continue
 
-            paragraph = document.add_paragraph()
-            run = paragraph.add_run()
-            width_in = min(7.5, max(5.0, page.rect.width / 72.0))
-            run.add_picture(image_stream, width=Inches(width_in))
-
-            if page_index < pdf_document.page_count - 1:
-                document.add_page_break()
-
-    section = document.sections[0]
-    section.page_width = Inches(8.27)
-    section.page_height = Inches(11.69)
-    section.left_margin = Inches(0.5)
-    section.right_margin = Inches(0.5)
-    section.top_margin = Inches(0.4)
-    section.bottom_margin = Inches(0.4)
+            for kind, payload in items:
+                if kind == 'table':
+                    _add_table(document, payload)
+                elif kind == 'block':
+                    block: TextBlock = payload
+                    if block.kind == 'text':
+                        _add_text_block(document, block, page.rect.width)
+                    elif block.kind == 'image':
+                        _add_image_block(document, block, page.rect.width)
 
     output.parent.mkdir(parents=True, exist_ok=True)
     document.save(output)
@@ -75,7 +157,7 @@ def _finalize_cell_values(layout: List[Dict[str, Any]]) -> List[List[str]]:
         tokens.append(item)
 
     if not tokens:
-        return [['Name', 'Score'], ['Alice', '90']]
+        return [['Converted document is empty.']]
 
     tokens = sorted(tokens, key=lambda item: (item.get('y', 0), item.get('x', 0)))
     rows: List[List[str]] = []
@@ -96,27 +178,15 @@ def _finalize_cell_values(layout: List[Dict[str, Any]]) -> List[List[str]]:
     if current_row:
         rows.append(current_row)
 
-    if not rows:
-        return [['Name', 'Score'], ['Alice', '90']]
-
-    if len(rows) == 1 and len(rows[0]) == 1:
-        return [rows[0]]
-
     normalized: List[List[str]] = []
     for row in rows:
-        if len(row) >= 2:
-            normalized.append(row[:2])
-        elif row:
+        if row:
             normalized.append(row)
 
-    if not normalized:
-        return [['Name', 'Score'], ['Alice', '90']]
-
-    return normalized
+    return normalized or [['Converted document is empty.']]
 
 
 def build_docx_from_layout(layout: List[Dict[str, Any]], output_path: str | Path) -> str:
-    """Create an editable DOCX from detected layout blocks while keeping page structure."""
     document = Document()
     section = document.sections[0]
     section.page_width = Inches(8.27)
@@ -130,10 +200,11 @@ def build_docx_from_layout(layout: List[Dict[str, Any]], output_path: str | Path
     if len(rows) == 1 and len(rows[0]) == 1:
         paragraph = document.add_paragraph()
         run = paragraph.add_run(rows[0][0])
-        run.font.size = Inches(11 / 72)
+        run.font.size = Pt(11)
     else:
         max_cols = max(len(row) for row in rows)
         table = document.add_table(rows=len(rows), cols=max_cols)
+        table.style = 'Table Grid'
         for row_index, row_values in enumerate(rows):
             for col_index, value in enumerate(row_values[:max_cols]):
                 table.rows[row_index].cells[col_index].text = value
