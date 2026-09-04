@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 type EditorTopBarProps = {
   fileName: string
   zoom: number
@@ -8,9 +10,23 @@ type EditorTopBarProps = {
   onViewMode?: () => void
   onMoreOptions?: () => void
   processing?: boolean
+  planLabel?: string
+  isPro?: boolean
 }
 
-export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, onRename, onHistory, onViewMode, onMoreOptions, processing = false }: EditorTopBarProps) {
+export function EditorTopBar({
+  fileName,
+  zoom,
+  onZoomChange,
+  onDownload,
+  onRename,
+  onHistory,
+  onViewMode,
+  onMoreOptions,
+  processing = false,
+  planLabel = 'Free',
+  isPro = false,
+}: EditorTopBarProps) {
   const zoomOut = () => onZoomChange(Math.max(50, zoom - 10))
   const zoomIn = () => onZoomChange(Math.min(200, zoom + 10))
 
@@ -31,6 +47,12 @@ export function EditorTopBar({ fileName, zoom, onZoomChange, onDownload, onRenam
             </svg>
           </button>
         </div>
+        <span className={`plan-chip ${isPro ? (planLabel === 'Dev' ? 'dev' : 'pro') : 'free'}`}>{planLabel}</span>
+        {!isPro ? (
+          <Link to="/pricing" className="plan-upgrade-link">
+            Upgrade
+          </Link>
+        ) : null}
       </div>
 
       <div className="editor-topbar-center">

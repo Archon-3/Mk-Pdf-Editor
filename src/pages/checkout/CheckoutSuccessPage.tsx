@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { capturePayPalOrder } from '../../shared/api/payments'
+import { setStoredPlan } from '../../shared/plan'
 
 export function CheckoutSuccessPage() {
   const [params] = useSearchParams()
@@ -28,7 +29,7 @@ export function CheckoutSuccessPage() {
           ? `${result.amount.value} ${result.amount.currency_code || 'USD'}`
           : null
         setDetails([result.planId, amount, result.payer].filter(Boolean).join(' · ') || null)
-        window.localStorage.setItem('mkpdf.plan', result.planId || 'pro')
+        setStoredPlan(result.planId || 'pro_monthly')
       } catch (error) {
         if (cancelled) return
         setStatus('error')

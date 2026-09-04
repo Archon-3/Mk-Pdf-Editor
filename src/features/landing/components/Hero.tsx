@@ -3,7 +3,7 @@ import { APP_NAME } from '../../../shared/constants/branding'
 
 export function Hero() {
   return (
-    <section className="hero">
+    <section className="hero" id="features">
       <div className="hero-copy">
         <p className="eyebrow">All-in-One PDF Editor</p>
         <h1>

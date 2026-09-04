@@ -7,6 +7,10 @@ import { ToolsListPage, ToolPage } from './pages/tools/index.ts'
 import { PricingPage } from './pages/pricing/index.ts'
 import { SupportPage } from './pages/support/index.ts'
 import { CheckoutCancelPage, CheckoutSuccessPage } from './pages/checkout/index.ts'
+import { AboutPage } from './pages/about/index.ts'
+import { CareersPage } from './pages/careers/index.ts'
+import { PrivacyPage } from './pages/privacy/index.ts'
+import { TermsPage } from './pages/terms/index.ts'
 
 export default function App() {
   return (
@@ -20,6 +24,10 @@ export default function App() {
           <Route path="tools/:toolId" element={<ToolPage />} />
           <Route path="pricing" element={<PricingPage />} />
           <Route path="support" element={<SupportPage />} />
+          <Route path="about" element={<AboutPage />} />
+          <Route path="careers" element={<CareersPage />} />
+          <Route path="privacy" element={<PrivacyPage />} />
+          <Route path="terms" element={<TermsPage />} />
           <Route path="checkout/success" element={<CheckoutSuccessPage />} />
           <Route path="checkout/cancel" element={<CheckoutCancelPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

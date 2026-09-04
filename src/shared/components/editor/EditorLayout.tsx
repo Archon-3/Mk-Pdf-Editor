@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { fetchToolResult, getToolById, startToolJob } from '../../../features/pdf-tools'
 import type { ToolId } from '../../../features/pdf-tools/shared/types'
+import { assertFilesAllowed, getPlanLimits, getStoredPlan, incrementLocalUsage } from '../../plan'
 import { EditorTopBar } from './EditorTopBar.tsx'
 import { EditorSidebar } from './EditorSidebar.tsx'
 import { EditorCanvas } from './EditorCanvas.tsx'
@@ -45,6 +46,14 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
   const [runRequest, setRunRequest] = useState(0)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [planLabel, setPlanLabel] = useState(() => getPlanLimits(getStoredPlan()).label)
+  const [isPro, setIsPro] = useState(() => getPlanLimits(getStoredPlan()).isPro)
+
+  useEffect(() => {
+    const limits = getPlanLimits(getStoredPlan())
+    setPlanLabel(limits.label)
+    setIsPro(limits.isPro)
+  }, [])
 
   const jobContextRef = useRef({
     file,
@@ -138,6 +147,7 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
         setResultFile(previewable ? generatedFile : null)
 
         const toolName = getToolById(activeToolId)?.name ?? 'Operation'
+        incrementLocalUsage()
         setSuccessMessage(
           previewable
             ? `${toolName} completed successfully. Your file is ready to download.`
@@ -181,6 +191,13 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
       : nextFiles
     const nextFile = selectedFiles[0]
     if (!nextFile) return
+
+    const gate = assertFilesAllowed(selectedFiles, String(toolId || 'pdf-to-word'), getStoredPlan())
+    if (!gate.ok) {
+      setErrorMessage(gate.message)
+      return
+    }
+
     retainedFile = nextFile
     retainedFiles = selectedFiles
     setFile(nextFile)
@@ -205,6 +222,12 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     }
     if (!(activeSidebarTool ?? initialToolId)) {
       setErrorMessage('Choose a tool from the sidebar, review the file, then click Run.')
+      return
+    }
+    const toolId = String(activeSidebarTool ?? initialToolId)
+    const gate = assertFilesAllowed(files.length ? files : [file], toolId, getStoredPlan())
+    if (!gate.ok) {
+      setErrorMessage(gate.message)
       return
     }
     setRunRequest((current) => current + 1)
@@ -242,6 +265,8 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
           anchor.click()
         } : undefined}
         processing={isProcessing}
+        planLabel={planLabel}
+        isPro={isPro}
       />
 
       <div className="editor-body">
