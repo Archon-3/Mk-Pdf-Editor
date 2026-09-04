@@ -1,6 +1,6 @@
 # MK PDF Editor — Complete Project Guide
 
-This document explains the **MK PDF Editor** project in depth: what it is, how the code is organized, where every important piece lives, how uploads and storage work, how Google AdSense is wired, why the backend is Python instead of Node.js, what Node.js still does better, what makes this product different from common market tools, and — most importantly — the **real engineering challenges** that shaped the app.
+This document explains the **MK PDF Editor** project in depth: what it is, how the code is organized, where every important piece lives, how uploads and storage work, how Google AdSense and PayPal are wired, how Free vs Pro limits are enforced, why the backend is Python instead of Node.js, what Node.js still does better, what makes this product different from common market tools, and — most importantly — the **real engineering challenges** that shaped the app.
 
 ---
 
@@ -13,12 +13,13 @@ This document explains the **MK PDF Editor** project in depth: what it is, how t
 5. [All tools the product supports](#5-all-tools-the-product-supports)
 6. [Upload, preview, processing, and where files are stored](#6-upload-preview-processing-and-where-files-are-stored)
 7. [Google AdSense: what it is, and how this project uses it](#7-google-adsense-what-it-is-and-how-this-project-uses-it)
-8. [Why Python backend fits this project better than Node.js](#8-why-python-backend-fits-this-project-better-than-nodejs)
-9. [What Node.js still has that Python does not](#9-what-nodejs-still-has-that-python-does-not)
-10. [What makes this project different from others on the market](#10-what-makes-this-project-different-from-others-on-the-market)
-11. [The challenges that mattered most](#11-the-challenges-that-mattered-most)
-12. [How to run the project](#12-how-to-run-the-project)
-13. [Known gaps and honest limitations](#13-known-gaps-and-honest-limitations)
+8. [PayPal checkout and Free vs Pro plan limits](#8-paypal-checkout-and-free-vs-pro-plan-limits) (includes **Dev** unlimited pass + top-bar tag)
+9. [Why Python backend fits this project better than Node.js](#9-why-python-backend-fits-this-project-better-than-nodejs)
+10. [What Node.js still has that Python does not](#10-what-nodejs-still-has-that-python-does-not)
+11. [What makes this project different from others on the market](#11-what-makes-this-project-different-from-others-on-the-market)
+12. [The challenges that mattered most](#12-the-challenges-that-mattered-most)
+13. [How to run the project](#13-how-to-run-the-project)
+14. [Known gaps and honest limitations](#14-known-gaps-and-honest-limitations)
 
 ---
 
@@ -32,15 +33,16 @@ This document explains the **MK PDF Editor** project in depth: what it is, how t
 - Apply light edits (watermark, redaction, annotation, signature notes)
 - Review files in the browser before running a tool
 - Monetize marketing pages with Google AdSense
-- Present pricing and support as first-class product pages
+- Sell Pro via PayPal (Monthly $9.99 / Annual $59.99) with Free plan limits enforced in the tools workspace
+- Present pricing, support, and company pages (About, Careers, Privacy, Terms) as first-class routes
 
 The product is not “just a converter form.” The center of gravity is a **tools workspace** where a user:
 
-1. Uploads a file
+1. Uploads a file (gated by Free/Pro size and merge limits)
 2. Reviews a visual preview
 3. Chooses a tool from the sidebar
 4. Optionally sets options
-5. Explicitly clicks **Run**
+5. Explicitly clicks **Run** (gated by daily job limits)
 6. Downloads the result
 
 That “review first, run on command” flow is intentional. It prevents accidental conversions and makes the experience feel like a real editor workspace rather than an immediate black-box upload.
@@ -49,11 +51,14 @@ That “review first, run on command” flow is intentional. It prevents acciden
 
 ```text
 Browser (React + Vite)
-  ├─ Landing / Pricing / Support / Auth UI
-  ├─ Tools editor shell (sidebar + canvas + toolbar)
-  └─ API client → /api/*
+  ├─ Landing / Pricing / Support / Company / Auth UI
+  ├─ Tools editor shell (sidebar + canvas + toolbar + plan badge)
+  ├─ Plan helpers (localStorage Free/Pro + client usage)
+  └─ API client → /api/* (planId + X-MK-Plan + X-MK-Client)
 
 Flask backend (Python)
+  ├─ Plan limits (file size, merge count, daily jobs)
+  ├─ PayPal create/capture orders
   ├─ Validation + upload storage
   ├─ ProcessingEngine (job orchestration)
   ├─ Conversion / PDF / extraction services
@@ -78,7 +83,8 @@ Use this as a map when you need to change behavior.
 | `vite.config.ts` | Vite + Vitest config; `/api` proxy to Flask |
 | `tsconfig.json` | TypeScript compiler settings |
 | `index.html` | SPA shell that loads `src/main.tsx` |
-| `.env.example` | Template for Google OAuth + AdSense env vars |
+| `.env.example` | Template for Google OAuth, AdSense, PayPal, and `FRONTEND_URL` |
+| `PROJECT_GUIDE.md` | This architecture and product guide |
 | `.gitignore` | Ignores `node_modules`, `.env`, `backend/uploads`, `backend/output`, etc. |
 | `public/` | Static public assets (favicon, icons) |
 | `src/` | All frontend application code |
@@ -92,8 +98,13 @@ Use this as a map when you need to change behavior.
 | `src/App.tsx` | React Router routes |
 | `src/pages/home/` | Landing page |
 | `src/pages/tools/` | Tools list page + per-tool page |
-| `src/pages/pricing/` | Pricing page |
+| `src/pages/pricing/` | Pricing page (Free + Pro Monthly + Pro Annual) |
 | `src/pages/support/` | Support page |
+| `src/pages/checkout/` | PayPal success / cancel return pages |
+| `src/pages/about/` | About company page |
+| `src/pages/careers/` | Careers page |
+| `src/pages/privacy/` | Privacy policy |
+| `src/pages/terms/` | Terms of service |
 | `src/pages/login/` | Login page |
 | `src/pages/signup/` | Signup page |
 
@@ -102,8 +113,10 @@ Routes currently include:
 - `/` — home
 - `/tools` — tools workspace
 - `/tools/:toolId` — tools workspace with a tool preselected
-- `/pricing` — pricing
+- `/pricing` — pricing (always shows Free + Monthly + Annual)
 - `/support` — support / help / contact
+- `/about`, `/careers`, `/privacy`, `/terms` — company / legal
+- `/checkout/success`, `/checkout/cancel` — PayPal return URLs
 - `/login`, `/signup` — auth UI shells
 
 ### Feature modules (domain code)
@@ -135,27 +148,30 @@ The **live product path** for running tools is not the old per-tool page stubs. 
 - `src/shared/components/editor/EditorCanvas.tsx` — upload UI, preview rendering, operation options, Run button
 - `src/shared/components/editor/EditorSidebar.tsx` — tool list
 - `src/shared/components/editor/EditorToolbar.tsx` — canvas toolbar
-- `src/shared/components/editor/EditorTopBar.tsx` — file name, zoom, download
+- `src/shared/components/editor/EditorTopBar.tsx` — file name, Free/Pro badge, Upgrade link, zoom, download
 
 ### Shared frontend infrastructure
 
 | Path | What it is |
 |------|------------|
-| `src/shared/api/client.ts` | `uploadFile`, `downloadFile`, `previewOfficeFile`, `fetchAPI` |
+| `src/shared/api/client.ts` | `uploadFile` (sends `planId` + plan/client headers), `downloadFile`, `previewOfficeFile`, `fetchAPI` |
+| `src/shared/api/payments.ts` | PayPal create-order / capture helpers |
+| `src/shared/plan/` | Free vs Pro limits, localStorage plan + daily usage helpers |
 | `src/shared/constants/branding.ts` | App name, API base URL, Google client ID, AdSense client ID |
 | `src/shared/components/Header.tsx` | Top navigation |
-| `src/shared/components/Footer.tsx` | Footer |
+| `src/shared/components/Footer.tsx` | Footer (Features, About, Careers, Privacy, Terms, newsletter) |
 | `src/shared/components/AppLayout.tsx` | Shell: header + outlet + footer + AdSense loader |
 | `src/shared/components/ads/` | AdSense script loader and ad units |
 | `src/styles/index.css` | Global marketing/app styles |
-| `src/styles/editor.css` | Tools workspace styles |
+| `src/styles/editor.css` | Tools workspace styles (includes plan chip) |
 
 ### Backend entry and HTTP layer
 
 | Path | What it is |
 |------|------------|
-| `backend/app/__init__.py` | Flask app factory, CORS, upload/output folders, blueprint registration |
-| `backend/app/routes/api.py` | **Main live API**: health, tools, preview, upload, job status, download |
+| `backend/app/__init__.py` | Flask app factory, CORS, `MAX_CONTENT_LENGTH=2GB` (Free/Pro still gated by plan checks), upload/output folders, blueprint registration |
+| `backend/app/routes/api.py` | **Main live API**: health, tools, preview, plan limits, upload, job status, download |
+| `backend/app/routes/payments.py` | PayPal create / capture endpoints |
 | `backend/app/routes/pdf.py` | Older/stub-style PDF endpoints |
 | `backend/app/routes/conversion.py` | Mixed conversion routes (one real alternate path + stubs) |
 | `backend/app/routes/extraction.py` | Stub extraction endpoints |
@@ -167,6 +183,8 @@ The **live product path** for running tools is not the old per-tool page stubs. 
 |------|------------|
 | `backend/app/services/processing_engine.py` | Job orchestration, tool dispatch, in-memory `JOB_STORE`, PDF edit helpers |
 | `backend/app/services/tool_registry.py` | Canonical tool catalog for the API |
+| `backend/app/services/plans/limits.py` | Free vs Pro: file size, merge count, daily job counters (`backend/output/plan_usage.json`) |
+| `backend/app/services/payments/paypal.py` | PayPal OAuth, create order, capture payment |
 | `backend/app/services/files/validation.py` | File type / tool acceptance checks |
 | `backend/app/services/files/upload.py` | Saves uploads into `backend/uploads/` |
 | `backend/app/services/conversion/office_renderer.py` | Finds LibreOffice and runs headless conversions |
@@ -360,15 +378,17 @@ On the frontend, the original browser `File` object also remains in memory so th
 
 When the user clicks **Run**:
 
-1. Frontend calls `startToolJob()` → `POST /api/upload`
-2. Backend validates the file against the selected tool
-3. Backend saves the file into:
+1. Frontend checks Free/Pro gates locally (`assertFilesAllowed` in `src/shared/plan/`)
+2. Frontend calls `startToolJob()` → `POST /api/upload` with `planId`, `X-MK-Plan`, and `X-MK-Client`
+3. Backend validates the file against the selected tool
+4. Backend enforces plan limits (file size, merge file count, daily jobs) before processing
+5. Backend saves the file into:
 
 ```text
 backend/uploads/{uuid}_{safe_original_filename}
 ```
 
-4. `ProcessingEngine` processes the job and writes output into:
+6. `ProcessingEngine` processes the job and writes output into:
 
 ```text
 backend/output/{job_id}_{stem}.{ext}
@@ -377,19 +397,19 @@ backend/output/{job_id}_{stem}.{ext}
 Examples of outputs:
 
 - `.pdf` for many convert/edit/transform tools
-- `.docx` / `.xlsx` / `.pptx` for PDF → Office
+- `.docx` / `.xlsx` / `.pptx` for PDF → Office (structured editable output with text styles, tables, and embedded images — not full-page screenshots)
 - `.zip` for split / pdf-to-image / extract-images
 - `.txt` for extract-text
 - `.csv` for extract-tables
 
-5. Job metadata is stored in an in-memory dictionary: `JOB_STORE`
-6. Frontend downloads via:
+7. Job metadata is stored in an in-memory dictionary: `JOB_STORE`
+8. Frontend downloads via:
 
 ```text
 GET /api/jobs/{job_id}/download
 ```
 
-7. After download is sent, the backend cleans up source + output files for that job.
+9. After download is sent, the backend cleans up source + output files for that job.
 
 ### Exact lifecycle diagram
 
@@ -514,7 +534,139 @@ Ads are **not** placed inside the tools editor workspace. That is deliberate:
 
 ---
 
-## 8. Why Python backend fits this project better than Node.js
+## 8. PayPal checkout and Free vs Pro plan limits
+
+Monetization has two tracks:
+
+1. **AdSense** on marketing pages (section 7)
+2. **PayPal Pro subscriptions** with hard Free vs Pro usage limits in the tools workspace
+
+### Pricing plans (UI)
+
+`src/features/pricing/data/plans.ts` always exposes three cards on `/pricing` and the home preview:
+
+| Plan | Price | Checkout |
+|------|-------|----------|
+| Free | $0 | Goes to `/tools` |
+| Pro Monthly | $9.99 / month | PayPal |
+| Pro Annual | $59.99 / year | PayPal (~50% savings vs monthly) |
+
+### Hard limits (Free vs Pro vs Dev)
+
+| Limit | Free | Pro | Dev (local developer) |
+|-------|------|-----|------------------------|
+| Max file size | 50MB | 200MB | ~2GB (effectively uncapped for local work) |
+| Tool runs per day | 15 | 500 | Unlimited (not counted) |
+| Merge PDFs per run | 3 | 30 | 500 |
+
+Flask `MAX_CONTENT_LENGTH` is set to **2GB** so large Dev uploads can pass HTTP; Free/Pro users are still rejected earlier by plan checks (50MB / 200MB).
+
+### How enforcement works
+
+```text
+Upload / Run in editor
+        │
+        ├─ Frontend: getStoredPlan() / isDeveloperUnlimited()
+        │     ├─ npm run dev → plan = developer (no Free/Pro gates)
+        │     └─ else Free/Pro from localStorage mkpdf.plan + mkpdf.usage
+        │
+        └─ POST /api/upload
+              ├─ planId form field + X-MK-Plan header
+              ├─ X-MK-Client header (anonymous client id for daily counters)
+              ├─ validate_plan_constraints() → size + merge (skipped for developer)
+              └─ check_and_consume_job() → daily jobs (skipped for developer)
+```
+
+Key files:
+
+| Layer | Path |
+|-------|------|
+| Frontend plan helpers | `src/shared/plan/limits.ts` (`isDeveloperUnlimited`, `developer` tier) |
+| Editor gates + badge | `EditorLayout.tsx`, `EditorTopBar.tsx` |
+| Plan chip styles | `src/styles/editor.css` (`.plan-chip.free` / `.pro` / `.dev`) |
+| Upload headers | `src/shared/api/client.ts` |
+| Backend limits | `backend/app/services/plans/limits.py` |
+| API enforcement | `GET /api/plan/limits`, `POST /api/upload` in `api.py` |
+| PayPal service | `backend/app/services/payments/paypal.py` |
+| PayPal routes | `backend/app/routes/payments.py` |
+| Checkout UI | `src/pages/checkout/` |
+| Pricing copy | `src/features/pricing/data/plans.ts` |
+
+### Editor plan tags (top bar)
+
+The tools workspace top bar shows a plan chip next to the document title:
+
+| Tag | When | Upgrade link |
+|-----|------|--------------|
+| **Free** | Normal visitors / stored `free` | Shown → `/pricing` |
+| **Pro** / **Pro Annual** | After PayPal capture (`pro_monthly` / `pro_annual`) | Hidden |
+| **Dev** | Local developer unlimited mode | Hidden |
+
+Implementation: `EditorTopBar` receives `planLabel` + `isPro` from `EditorLayout`, which reads `getPlanLimits(getStoredPlan())`. Dev uses the `.plan-chip.dev` style (amber), Pro uses green, Free uses muted gray.
+
+### PayPal flow
+
+1. User clicks **Upgrade Monthly** or **Upgrade Annual** on `/pricing`
+2. Frontend calls create-order API with `planId`
+3. User pays on PayPal (sandbox or live per `PAYPAL_MODE`)
+4. PayPal returns to `/checkout/success?token=...`
+5. Frontend captures the order; on success `setStoredPlan(planId)` writes `mkpdf.plan`
+6. Editor top bar shows **Pro** (and hides Upgrade); Free users see **Free** + Upgrade link  
+   (While `npm run dev` is active, the badge stays **Dev** — developer unlimited overrides stored Free/Pro for local work.)
+
+Env vars (see `.env.example`):
+
+- `FRONTEND_URL` — return/cancel base URL
+- `PAYPAL_MODE` — `sandbox` or `live`
+- `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET`
+- `DEV_UNLIMITED` — optional backend unlock (see below)
+- `VITE_DEV_UNLIMITED` / `VITE_FORCE_PLAN_LIMITS` — frontend unlimited / force-test flags
+
+### Developer unlimited mode (you) — pass + Dev tag
+
+This project includes an explicit **developer unlimited pass** so the product owner is never blocked by Free/Pro caps while building and testing.
+
+#### What you get
+
+- No Free/Pro file-size, merge, or daily-run gates
+- Upload sends `planId=developer` (and `X-MK-Plan: developer`)
+- Backend treats `developer` / `dev` / `unlimited` as uncapped (`isDeveloper: true`)
+- Daily usage is **not** written to `plan_usage.json` for Dev
+- Editor top bar shows the **Dev** tag (not Free / Pro)
+
+#### How it turns on
+
+| Layer | Trigger |
+|-------|---------|
+| Frontend | `npm run dev` → `import.meta.env.DEV` is true → `isDeveloperUnlimited()` → plan `developer` |
+| Frontend (optional) | `VITE_DEV_UNLIMITED=true` even outside default DEV heuristics |
+| Backend | Request `planId` / `X-MK-Plan` is `developer` (what Vite sends) |
+| Backend (optional) | `DEV_UNLIMITED=1` in `.env` unlocks **all** local API calls even if plan id is missing |
+
+#### How to test Free/Pro limits anyway
+
+Set `VITE_FORCE_PLAN_LIMITS=true` in `.env`, restart Vite, and (if set) turn off `DEV_UNLIMITED`. Then the UI behaves like a real Free or Pro user from `localStorage`.
+
+#### Code map for the Dev pass
+
+| Concern | File |
+|---------|------|
+| `isDeveloperUnlimited()`, Dev limits, skip gates | `src/shared/plan/limits.ts` |
+| Exports | `src/shared/plan/index.ts` |
+| Sends `planId=developer` on upload | `src/shared/api/client.ts` |
+| Passes `planLabel` / `isPro` into top bar | `src/shared/components/editor/EditorLayout.tsx` |
+| Renders **Dev** / Free / Pro chip | `src/shared/components/editor/EditorTopBar.tsx` |
+| `.plan-chip.dev` styling | `src/styles/editor.css` |
+| Backend skip + Dev limits | `backend/app/services/plans/limits.py` |
+| Env template notes | `.env.example` |
+
+### Honest note on entitlement trust
+
+Today the Pro flag is primarily **client-stored** (`localStorage`) and echoed to the API as `planId`. That is fine for demos and local product development. Production hardening should bind PayPal captures to signed server-side entitlements (user account / JWT / webhook-verified subscription) so Free users cannot simply set `mkpdf.plan` to Pro in DevTools. The **Dev** pass is intentionally limited to local Vite / `DEV_UNLIMITED` — production builds must not ship with `VITE_DEV_UNLIMITED=true`.
+
+---
+
+## 9. Why Python backend fits this project better than Node.js
 
 This project’s hardest work is **document intelligence and conversion**, not JSON CRUD.
 
@@ -571,7 +723,7 @@ It is better for **this product’s core job**: converting and manipulating docu
 
 ---
 
-## 9. What Node.js still has that Python does not
+## 10. What Node.js still has that Python does not
 
 Being honest about tradeoffs matters.
 
@@ -623,7 +775,7 @@ That would take the strengths of both.
 
 ---
 
-## 10. What makes this project different from others on the market
+## 11. What makes this project different from others on the market
 
 Many market PDF tools are either:
 
@@ -678,7 +830,7 @@ Files are processed by your backend, stored temporarily, and cleaned after downl
 
 ---
 
-## 11. The challenges that mattered most
+## 12. The challenges that mattered most
 
 This section is the heart of the project story. These are the problems that consumed the most thinking, debugging, and redesign.
 
@@ -1013,7 +1165,7 @@ This challenge is often underestimated. Many student or portfolio projects stop 
 
 ---
 
-## 12. How to run the project
+## 13. How to run the project
 
 ### Prerequisites
 
@@ -1039,6 +1191,11 @@ Copy `.env.example` to `.env` and fill what you need:
 
 - `VITE_GOOGLE_CLIENT_ID` for Google auth UI wiring
 - `VITE_ADSENSE_CLIENT_ID` and slot IDs when ready to monetize
+- `FRONTEND_URL`, `PAYPAL_MODE`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` for Pro checkout
+- `DEV_UNLIMITED=1` for local backend unlimited (optional; Vite already sends `developer`)
+- `VITE_FORCE_PLAN_LIMITS=true` only when you want to test Free/Pro gates locally
+
+With `npm run dev`, the editor shows the **Dev** tag and skips Free/Pro caps (see [§8 Developer unlimited mode](#developer-unlimited-mode-you--pass--dev-tag)).
 
 ### Run frontend
 
@@ -1061,13 +1218,19 @@ Confirm the backend can find it through `office_renderer.find_libreoffice()`.
 
 ---
 
-## 13. Known gaps and honest limitations
+## 14. Known gaps and honest limitations
 
 A strong project document should also say what is unfinished.
 
 ### Auth backend gap
 
 Frontend auth UI and API helpers exist, but a complete production auth backend (sessions/JWT, user store, protected routes) is not the same maturity level as the document pipeline.
+
+### Plan entitlements are client-trusted today
+
+Free vs Pro limits are enforced on upload, but Pro status is stored in `localStorage` after PayPal capture. A determined Free user can spoof `planId` until server-side subscriptions are tied to authenticated users.
+
+Local **Dev** unlimited (`npm run dev` → **Dev** tag, `planId=developer`) is intentional for the product owner and must stay out of production builds (`VITE_DEV_UNLIMITED` must not be enabled in prod).
 
 ### OCR is only partially realized
 
@@ -1100,8 +1263,9 @@ React workspace
    │
    ├─ Preview: temporary, visual trust layer
    │
-   └─ Run: validate → backend/uploads → ProcessingEngine → backend/output → download → cleanup
+   └─ Run: plan gates → validate → backend/uploads → ProcessingEngine → backend/output → download → cleanup
                 │
+                ├─ Free/Pro limits (size, merge, daily jobs)
                 ├─ LibreOffice path = high fidelity
                 └─ Python libraries = always-available fallback + PDF core
 ```
@@ -1120,17 +1284,24 @@ And if you remember only one lesson from the hardest challenges, remember this:
 | Tools workspace logic | `src/shared/components/editor/EditorLayout.tsx` |
 | Preview rendering | `src/shared/components/editor/EditorCanvas.tsx` |
 | Frontend API calls | `src/shared/api/client.ts` |
+| Free / Pro / Dev plan helpers | `src/shared/plan/` |
+| Dev / Free / Pro top-bar tag | `src/shared/components/editor/EditorTopBar.tsx` |
+| PayPal (frontend) | `src/shared/api/payments.ts`, `src/pages/checkout/` |
 | Live backend API | `backend/app/routes/api.py` |
+| Plan limits (backend) | `backend/app/services/plans/limits.py` |
+| PayPal (backend) | `backend/app/routes/payments.py`, `backend/app/services/payments/paypal.py` |
 | Job processing | `backend/app/services/processing_engine.py` |
 | LibreOffice | `backend/app/services/conversion/office_renderer.py` |
+| PDF structure / images | `backend/app/services/pdf/structure.py` |
 | Tool catalog (backend) | `backend/app/services/tool_registry.py` |
 | Tool catalog (frontend) | `src/features/pdf-tools/index.ts` |
 | AdSense | `src/shared/components/ads/` |
 | Pricing feature | `src/features/pricing/` |
 | Support feature | `src/features/support/` |
+| Company pages | `src/pages/about/`, `careers/`, `privacy/`, `terms/` |
 | Upload storage | `backend/uploads/` |
 | Output storage | `backend/output/` |
 
 ---
 
-*Document generated for the MK PDF Editor codebase to explain architecture, storage, monetization, stack choices, market differentiation, and the real challenges behind making Office/PDF tools feel trustworthy in a browser.*
+*Document generated for the MK PDF Editor codebase to explain architecture, storage, monetization (AdSense + PayPal), Free vs Pro limits, stack choices, market differentiation, and the real challenges behind making Office/PDF tools feel trustworthy in a browser.*
