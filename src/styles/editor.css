@@ -506,6 +506,20 @@ main:has(.tools-editor-page) {
   min-height: 760px;
 }
 
+.editor-app .document-rendered-single {
+  grid-template-columns: 1fr;
+  min-height: 0;
+}
+
+.editor-app .preview-source-label {
+  margin: 0 0 8px;
+  color: #6d7c99;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .editor-app .document-html {
   padding: 18px;
   border: 1px solid #e1e8f5;
@@ -514,6 +528,7 @@ main:has(.tools-editor-page) {
   overflow: auto;
   color: #1d2d4a;
   line-height: 1.7;
+  max-height: 780px;
 }
 
 .editor-app .document-html h1,
@@ -528,6 +543,36 @@ main:has(.tools-editor-page) {
 .editor-app .document-html ul,
 .editor-app .document-html ol {
   margin-top: 0;
+}
+
+.editor-app .document-html table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.9rem;
+}
+
+.editor-app .document-html th,
+.editor-app .document-html td {
+  border: 1px solid #d5e0f2;
+  padding: 8px 10px;
+  vertical-align: top;
+}
+
+.editor-app .document-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 8px 0;
+  display: block;
+}
+
+.editor-app .office-preview-slide {
+  border: 1px solid #e1e8f5;
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+  background: #fff;
 }
 
 .editor-app .editable-panel {
