@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchToolResult, getToolById, startToolJob } from '../../../features/pdf-tools'
 import type { ToolId } from '../../../features/pdf-tools/shared/types'
 import { EditorTopBar } from './EditorTopBar.tsx'
@@ -18,6 +18,17 @@ let retainedZoom = 100
 let retainedDownloadUrl: string | null = null
 let retainedDownloadName = 'document'
 
+function clearDownloadState(
+  setDownloadUrl: (value: string | null) => void,
+  setDownloadName: (value: string) => void,
+) {
+  if (retainedDownloadUrl) URL.revokeObjectURL(retainedDownloadUrl)
+  retainedDownloadUrl = null
+  retainedDownloadName = 'document'
+  setDownloadUrl(null)
+  setDownloadName('document')
+}
+
 export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
   const [file, setFile] = useState<File | null>(retainedFile)
   const [files, setFiles] = useState<File[]>(retainedFiles.length ? retainedFiles : retainedFile ? [retainedFile] : [])
@@ -35,24 +46,31 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
+  const jobContextRef = useRef({
+    file,
+    files,
+    toolId: (activeSidebarTool ?? initialToolId) as ToolId | null,
+    operationOptions,
+  })
+  jobContextRef.current = {
+    file,
+    files,
+    toolId: activeSidebarTool ?? initialToolId,
+    operationOptions,
+  }
+
   useEffect(() => {
     setActiveSidebarTool((current) => current ?? initialToolId)
   }, [initialToolId])
 
   useEffect(() => {
     return () => {
-      if (downloadUrl) {
-        if (downloadUrl !== retainedDownloadUrl) URL.revokeObjectURL(downloadUrl)
-      }
+      if (downloadUrl && downloadUrl !== retainedDownloadUrl) URL.revokeObjectURL(downloadUrl)
     }
   }, [downloadUrl])
 
-  const effectiveToolId = activeSidebarTool ?? initialToolId ?? 'pdf-to-word'
-
   useEffect(() => {
-    if (retainedFile && !file) {
-      setFile(retainedFile)
-    }
+    if (retainedFile && !file) setFile(retainedFile)
   }, [file])
 
   useEffect(() => {
@@ -67,10 +85,15 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     return () => window.clearTimeout(timer)
   }, [notice])
 
+  // Jobs run only when the user explicitly clicks Run (runRequest increments).
   useEffect(() => {
-    if (!file || runRequest === 0) return
+    if (runRequest === 0) return
 
-    const selectedFile = file
+    const { file: selectedFile, files: selectedFiles, toolId, operationOptions: options } = jobContextRef.current
+    if (!selectedFile || !toolId) return
+
+    const activeFile = selectedFile
+    const activeToolId = toolId
     let cancelled = false
 
     async function processFile() {
@@ -79,30 +102,54 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
       setIsProcessing(true)
 
       try {
-        const result = await startToolJob(effectiveToolId, files, operationOptions)
+        const result = await startToolJob(activeToolId, selectedFiles, options)
         const blob = await fetchToolResult(result.jobId)
         if (cancelled) return
 
         const nextUrl = URL.createObjectURL(blob)
-        const generatedFile = new File([blob], result.filename || selectedFile.name, { type: blob.type || 'application/octet-stream' })
+        const resultName = result.filename || activeFile.name
+        const generatedFile = new File([blob], resultName, {
+          type: blob.type || 'application/octet-stream',
+        })
         if (retainedDownloadUrl) URL.revokeObjectURL(retainedDownloadUrl)
         retainedDownloadUrl = nextUrl
-        retainedDownloadName = result.filename || selectedFile.name
-        setDownloadUrl(() => nextUrl)
+        retainedDownloadName = resultName
+        setDownloadUrl(nextUrl)
         setDownloadName(retainedDownloadName)
-        setResultFile(generatedFile)
-        const toolName = getToolById(effectiveToolId)?.name ?? 'Operation'
-        setSuccessMessage(`${toolName} completed successfully. Your file is ready to download.`)
+
+        // Keep the visual canvas on previewable outputs only (PDF/Office/images).
+        // Zip/text results stay downloadable without replacing the good upload preview.
+        const lower = resultName.toLowerCase()
+        const previewable = (
+          lower.endsWith('.pdf')
+          || lower.endsWith('.doc')
+          || lower.endsWith('.docx')
+          || lower.endsWith('.xls')
+          || lower.endsWith('.xlsx')
+          || lower.endsWith('.ppt')
+          || lower.endsWith('.pptx')
+          || lower.endsWith('.png')
+          || lower.endsWith('.jpg')
+          || lower.endsWith('.jpeg')
+          || lower.endsWith('.webp')
+          || generatedFile.type.startsWith('image/')
+          || generatedFile.type === 'application/pdf'
+        )
+        setResultFile(previewable ? generatedFile : null)
+
+        const toolName = getToolById(activeToolId)?.name ?? 'Operation'
+        setSuccessMessage(
+          previewable
+            ? `${toolName} completed successfully. Your file is ready to download.`
+            : `${toolName} completed successfully. Download the result from the top bar.`
+        )
       } catch (error) {
         if (!cancelled) {
           const message = error instanceof Error ? error.message : 'The selected tool could not process this file.'
           setErrorMessage(message)
           setSuccessMessage(null)
-          setDownloadUrl((previousUrl) => {
-            if (previousUrl) URL.revokeObjectURL(previousUrl)
-            retainedDownloadUrl = null
-            return null
-          })
+          clearDownloadState(setDownloadUrl, setDownloadName)
+          setResultFile(null)
         }
       } finally {
         if (!cancelled) setIsProcessing(false)
@@ -114,28 +161,36 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     return () => {
       cancelled = true
     }
-  }, [file, files, effectiveToolId, operationOptions, runRequest])
+  }, [runRequest])
+
+  const handleSelectTool = (toolId: ToolId) => {
+    setActiveSidebarTool(toolId)
+    setRunRequest(0)
+    setResultFile(null)
+    setSuccessMessage(null)
+    setErrorMessage(null)
+    setOperationOptions({})
+    clearDownloadState(setDownloadUrl, setDownloadName)
+  }
 
   const handleUpload = (uploadedFiles: File | File[]) => {
+    const toolId = activeSidebarTool ?? initialToolId
     const nextFiles = Array.isArray(uploadedFiles) ? uploadedFiles : [uploadedFiles]
-    const selectedFiles = effectiveToolId === 'merge' && files.length > 0
+    const selectedFiles = toolId === 'merge' && files.length > 0
       ? [...files, ...nextFiles]
       : nextFiles
     const nextFile = selectedFiles[0]
     if (!nextFile) return
     retainedFile = nextFile
-    if (retainedDownloadUrl) URL.revokeObjectURL(retainedDownloadUrl)
-    retainedDownloadUrl = null
-    retainedDownloadName = 'document'
+    retainedFiles = selectedFiles
     setFile(nextFile)
     setFiles(selectedFiles)
-    retainedFiles = selectedFiles
     setOperationOptions({})
     setRunRequest(0)
-    setDownloadUrl(null)
     setResultFile(null)
     setSuccessMessage(null)
     setErrorMessage(null)
+    clearDownloadState(setDownloadUrl, setDownloadName)
   }
 
   const fileName = file?.name ?? 'Your Document.pdf'
@@ -143,7 +198,17 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     retainedZoom = nextZoom
     setZoom(nextZoom)
   }
-  const handleRunOperation = () => setRunRequest((current) => current + 1)
+  const handleRunOperation = () => {
+    if (!file) {
+      setErrorMessage('Upload a file before running a tool.')
+      return
+    }
+    if (!(activeSidebarTool ?? initialToolId)) {
+      setErrorMessage('Choose a tool from the sidebar, review the file, then click Run.')
+      return
+    }
+    setRunRequest((current) => current + 1)
+  }
   const handleRename = () => {
     const nextName = window.prompt('Rename document', displayName ?? file?.name ?? 'document')
     if (nextName?.trim()) setDisplayName(nextName.trim())
@@ -157,6 +222,8 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
     }
     else setNotice(action === 'bookmarks' ? 'Bookmarks are ready for the current document.' : null)
   }
+
+  const selectedToolId = activeSidebarTool ?? initialToolId
 
   return (
     <div className="editor-app">
@@ -178,7 +245,7 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
       />
 
       <div className="editor-body">
-        <EditorSidebar activeTool={activeSidebarTool} onSelectTool={setActiveSidebarTool} onQuickAction={handleQuickAction} />
+        <EditorSidebar activeTool={activeSidebarTool} onSelectTool={handleSelectTool} onQuickAction={handleQuickAction} />
 
         <div className="editor-main">
           <div className="editor-status-stack" aria-live="polite">
@@ -229,8 +296,9 @@ export function EditorLayout({ initialToolId = null }: EditorLayoutProps) {
             previewFile={resultFile}
             onOperationOptionsChange={setOperationOptions}
             onRunOperation={handleRunOperation}
-            activeSidebarTool={activeSidebarTool}
+            activeSidebarTool={selectedToolId}
             activeToolbarTool={activeToolbarTool}
+            isProcessing={isProcessing}
           />
           <EditorToolbar activeTool={activeToolbarTool} onSelectTool={setActiveToolbarTool} />
         </div>

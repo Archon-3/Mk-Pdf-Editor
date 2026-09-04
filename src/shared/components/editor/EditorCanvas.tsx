@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist'
 import * as mammoth from 'mammoth/mammoth.browser'
 import { previewOfficeFile } from '../../api/client'
+import { getToolById } from '../../../features/pdf-tools'
 
 GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString()
 
@@ -9,7 +10,7 @@ type PreviewState =
   | { kind: 'empty' }
   | { kind: 'pdf'; url: string; file: File; text?: string }
   | { kind: 'image'; url: string }
-  | { kind: 'document'; html: string }
+  | { kind: 'document'; html: string; sourceLabel?: string }
   | { kind: 'text'; text: string }
   | { kind: 'unsupported' }
 
@@ -61,11 +62,11 @@ type EditorCanvasProps = {
   onRunOperation?: () => void
   activeSidebarTool?: string | null
   activeToolbarTool?: ToolbarTool
+  isProcessing?: boolean
 }
 
 function stripHtmlToText(html: string) {
   if (!html) return ''
-
   const parser = document.createElement('div')
   parser.innerHTML = html
   return (parser.textContent ?? '').replace(/\s+/g, ' ').trim()
@@ -108,12 +109,30 @@ async function extractPdfText(file: File) {
         .join('\t'))
       .join('\n')
 
-    if (pageText.trim()) {
-      pageTexts.push(pageText)
-    }
+    if (pageText.trim()) pageTexts.push(pageText)
   }
 
   return pageTexts.join('\n\n')
+}
+
+async function convertDocxToHtml(file: File) {
+  const arrayBuffer = await file.arrayBuffer()
+  // Mammoth embeds images as data URIs by default and preserves tables in HTML.
+  const result = await mammoth.convertToHtml({ arrayBuffer })
+  return result.value || '<p>Document preview is empty.</p>'
+}
+
+function csvToHtml(text: string) {
+  const rows = text
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0)
+    .slice(0, 200)
+    .map((line) => line.split(',').map((cell) => cell.replace(/^"|"$/g, '')))
+
+  const body = rows
+    .map((row) => `<tr>${row.map((cell) => `<td>${cell.replace(/</g, '&lt;')}</td>`).join('')}</tr>`)
+    .join('')
+  return `<article class="office-preview office-preview-excel"><table>${body}</table></article>`
 }
 
 export function EditorCanvas({
@@ -128,41 +147,31 @@ export function EditorCanvas({
   onRunOperation,
   activeSidebarTool = null,
   activeToolbarTool = 'select',
+  isProcessing = false,
 }: EditorCanvasProps) {
   const [preview, setPreview] = useState<PreviewState>({ kind: 'empty' })
   const [editableText, setEditableText] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
+  const lastToolbarToolRef = useRef<ToolbarTool>(activeToolbarTool)
 
   useEffect(() => {
     if (!file) return
+    if (activeToolbarTool === lastToolbarToolRef.current) return
+    lastToolbarToolRef.current = activeToolbarTool
 
-    const toolMap: Record<string, string> = {
+    const toolMap: Partial<Record<ToolbarTool, string>> = {
       text: '\n[Added text]\n',
       textbox: '\n[Text box]\n',
       draw: '\n[Drawing mark]\n',
       image: '\n[Image placeholder]\n',
       signature: '\n[Signature]\n',
-      annotation: '\n[Annotation]\n',
-      watermark: '\n[Watermark]\n',
-      redaction: '\n[Redaction]\n',
     }
 
-    const snippet = toolMap[activeToolbarTool] ?? toolMap[String(activeSidebarTool) ?? '']
+    const snippet = toolMap[activeToolbarTool]
     if (!snippet) return
 
-    setEditableText((previous) => {
-      const next = previous ? `${previous}${snippet}` : snippet
-      requestAnimationFrame(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus()
-          const position = next.length
-          textareaRef.current.selectionStart = position
-          textareaRef.current.selectionEnd = position
-        }
-      })
-      return next
-    })
-  }, [file, activeSidebarTool, activeToolbarTool])
+    setEditableText((previous) => `${previous}${snippet}`)
+  }, [file, activeToolbarTool])
 
   useEffect(() => {
     if (!file) {
@@ -197,53 +206,61 @@ export function EditorCanvas({
 
       if (currentFile.type.startsWith('image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(lowerName)) {
         objectUrl = URL.createObjectURL(currentFile)
-        if (!cancelled) {
-          setPreview({ kind: 'image', url: objectUrl })
-        }
+        if (!cancelled) setPreview({ kind: 'image', url: objectUrl })
         return
       }
 
-      if (/\.(docx?|xls|xlsx|ppt|pptx)$/i.test(lowerName)) {
+      if (/\.(docx?|xls|xlsx|csv|ppt|pptx)$/i.test(lowerName)) {
         try {
           const previewBlob = await previewOfficeFile(currentFile)
-          const previewFile = new File([previewBlob], `${currentFile.name}.preview.pdf`, { type: 'application/pdf' })
-          const previewUrl = URL.createObjectURL(previewFile)
-          objectUrl = previewUrl
-          if (!cancelled) setPreview({ kind: 'pdf', url: previewUrl, file: previewFile })
-          return
-        } catch {
-          // Fall through to the structural preview when no Office renderer is available.
-        }
-      }
+          if (cancelled) return
 
-      if (/\.(docx?|odt|rtf|txt|md|csv)$/i.test(lowerName)) {
-        try {
-          const transformed = lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerName.endsWith('.odt')
-
-          if (transformed) {
-            const arrayBuffer = await currentFile.arrayBuffer()
-            const result = await mammoth.convertToHtml({ arrayBuffer })
-            const html = result.value || '<p>Document preview is empty.</p>'
+          if (previewBlob.type.includes('html')) {
+            const html = await previewBlob.text()
             if (!cancelled) {
-              setPreview({ kind: 'document', html })
+              setPreview({ kind: 'document', html, sourceLabel: 'Structured preview' })
               setEditableText(stripHtmlToText(html))
             }
             return
           }
 
-          const text = await readFileText(currentFile)
+          const nextPreviewFile = new File([previewBlob], `${currentFile.name}.preview.pdf`, { type: 'application/pdf' })
+          const previewUrl = URL.createObjectURL(nextPreviewFile)
+          objectUrl = previewUrl
+          if (!cancelled) setPreview({ kind: 'pdf', url: previewUrl, file: nextPreviewFile })
+          return
+        } catch {
+          // Fall through to local structural preview.
+        }
+      }
+
+      if (lowerName.endsWith('.docx') || lowerName.endsWith('.doc')) {
+        try {
+          const html = await convertDocxToHtml(currentFile)
           if (!cancelled) {
+            setPreview({ kind: 'document', html, sourceLabel: 'Document preview' })
+            setEditableText(stripHtmlToText(html))
+          }
+          return
+        } catch {
+          // continue
+        }
+      }
+
+      if (lowerName.endsWith('.csv') || lowerName.endsWith('.txt') || lowerName.endsWith('.md') || lowerName.endsWith('.rtf')) {
+        try {
+          const text = await readFileText(currentFile)
+          if (cancelled) return
+          if (lowerName.endsWith('.csv')) {
+            setPreview({ kind: 'document', html: csvToHtml(text), sourceLabel: 'Spreadsheet preview' })
+            setEditableText(text)
+          } else {
             setPreview({ kind: 'text', text })
             setEditableText(text)
           }
           return
         } catch {
-          const fallbackText = await readFileText(currentFile).catch(() => '')
-          if (!cancelled) {
-            setPreview({ kind: 'text', text: fallbackText })
-            setEditableText(fallbackText)
-          }
-          return
+          // continue
         }
       }
 
@@ -257,9 +274,7 @@ export function EditorCanvas({
 
     return () => {
       cancelled = true
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl)
-      }
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [file, previewFile])
 
@@ -352,22 +367,26 @@ export function EditorCanvas({
             <path d="M12 8H36C38.2 8 40 9.8 40 12V36C40 38.2 38.2 40 36 40H12C9.8 40 8 38.2 8 36V12C8 9.8 9.8 8 12 8Z" />
             <path d="M16 16H32M16 24H32M16 32H24" strokeLinecap="round" />
           </svg>
-          <strong>Upload a PDF, Word, or text file</strong>
-          <span>Click or drag and drop your document here</span>
+          <strong>Upload a PDF, Word, Excel, or PowerPoint file</strong>
+          <span>Review the document first, then choose a tool and click Run</span>
         </label>
       )
     }
 
-    const currentToolLabel = activeSidebarTool ?? activeToolbarTool ?? 'select'
+    const toolMeta = activeSidebarTool ? getToolById(activeSidebarTool) : undefined
+    const currentToolLabel = toolMeta?.name ?? activeSidebarTool ?? 'Select a tool'
     const shownFile = previewFile ?? file
     const isMergeReady = activeSidebarTool !== 'merge' || files.length >= 2
+    const canRun = Boolean(activeSidebarTool) && isMergeReady && !isProcessing
 
     return (
       <div className="document-viewer" data-testid="document-viewer">
         <div className="viewer-meta">
           <span className="viewer-type-badge">{shownFile.type || 'document'}</span>
           <span className="viewer-file-name">{shownFile.name}</span>
-          <span className="viewer-editing-indicator">Editable mode • {currentToolLabel}</span>
+          <span className="viewer-editing-indicator">
+            {previewFile ? 'Result preview' : 'Review mode'} • {currentToolLabel}
+          </span>
           {operationControls()}
           <label className="editor-file-add-btn">
             {activeSidebarTool === 'merge' ? 'Upload another PDF' : 'Replace file'}
@@ -379,16 +398,23 @@ export function EditorCanvas({
               hidden
             />
           </label>
-          <button type="button" className="editor-run-btn" onClick={onRunOperation} disabled={!isMergeReady}>
-            {isMergeReady ? `Run ${currentToolLabel}` : 'Select 2 PDFs'}
+          <button type="button" className="editor-run-btn" onClick={onRunOperation} disabled={!canRun}>
+            {isProcessing ? 'Running…' : !activeSidebarTool ? 'Select a tool' : !isMergeReady ? 'Select 2 PDFs' : `Run ${currentToolLabel}`}
           </button>
         </div>
 
         {preview.kind === 'pdf' && <PdfPagesPreview file={preview.file} />}
 
-        {(preview.kind === 'document' || preview.kind === 'text') && (
+        {preview.kind === 'document' && (
+          <div className="document-rendered document-rendered-single">
+            {preview.sourceLabel ? <p className="preview-source-label">{preview.sourceLabel}</p> : null}
+            <div className="document-html" dangerouslySetInnerHTML={{ __html: preview.html }} />
+          </div>
+        )}
+
+        {preview.kind === 'text' && (
           <label className="editable-panel full-height">
-            <span>Edit document</span>
+            <span>Document text</span>
             <textarea
               ref={textareaRef}
               value={editableText}
@@ -400,14 +426,6 @@ export function EditorCanvas({
         {preview.kind === 'image' && (
           <div className="image-editor-wrap">
             <img className="image-preview" src={preview.url} alt={shownFile.name} />
-            <label className="editable-panel">
-              <span>Image content</span>
-              <textarea
-                ref={textareaRef}
-                value={editableText || 'This image is attached to the document and can be edited as an image asset in the next step.'}
-                onChange={(event) => setEditableText(event.target.value)}
-              />
-            </label>
           </div>
         )}
 
@@ -415,7 +433,7 @@ export function EditorCanvas({
           <div className="unsupported-preview">
             <div className="unsupported-icon">📄</div>
             <h3>{file.name}</h3>
-            <p>This file type can be uploaded, but preview support is not enabled yet.</p>
+            <p>This file is uploaded. Choose a tool and click Run to process it.</p>
           </div>
         )}
       </div>
@@ -425,10 +443,7 @@ export function EditorCanvas({
   return (
     <div className="editor-canvas-wrap">
       <div className="editor-canvas-scroll">
-        <div
-          className="editor-page"
-          style={{ transform: `scale(${zoom / 100})` }}
-        >
+        <div className="editor-page" style={{ transform: `scale(${zoom / 100})` }}>
           {fileName ? (
             <>
               <div className="page-content page-content-viewer">{renderViewer()}</div>

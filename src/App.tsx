@@ -6,6 +6,7 @@ import { LoginPage } from './pages/login/index.ts'
 import { ToolsListPage, ToolPage } from './pages/tools/index.ts'
 import { PricingPage } from './pages/pricing/index.ts'
 import { SupportPage } from './pages/support/index.ts'
+import { CheckoutCancelPage, CheckoutSuccessPage } from './pages/checkout/index.ts'
 
 export default function App() {
   return (
@@ -19,6 +20,8 @@ export default function App() {
           <Route path="tools/:toolId" element={<ToolPage />} />
           <Route path="pricing" element={<PricingPage />} />
           <Route path="support" element={<SupportPage />} />
+          <Route path="checkout/success" element={<CheckoutSuccessPage />} />
+          <Route path="checkout/cancel" element={<CheckoutCancelPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>
