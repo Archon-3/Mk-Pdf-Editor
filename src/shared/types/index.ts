@@ -4,7 +4,10 @@ export type ToolItem = {
   tag?: 'Popular' | 'Pro'
 }
 
+export type PlanId = 'free' | 'pro_monthly' | 'pro_annual'
+
 export type Plan = {
+  id: PlanId
   name: string
   price: string
   period: string
@@ -13,6 +16,7 @@ export type Plan = {
   features: string[]
   cta: string
   featured?: boolean
+  checkout: 'free' | 'paypal'
 }
 
 export type WhyItem = {

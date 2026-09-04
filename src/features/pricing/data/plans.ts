@@ -19,73 +19,87 @@ export const pricingFaqs = [
 
 export const monthlyPlans: Plan[] = [
   {
+    id: 'free',
     name: 'Free',
     price: '$0',
     period: '/ forever',
     details: 'Basic features included',
     features: ['All tools access', 'Up to 50MB per file', 'Standard processing speed', 'Web-based access'],
     cta: 'Get Started',
+    checkout: 'free',
   },
   {
+    id: 'pro_monthly',
     name: 'Pro',
     price: '$9.99',
     period: '/ month',
     badge: 'Most Popular',
-    details: 'Billed monthly',
+    details: 'Billed monthly via PayPal',
     features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
     cta: 'Upgrade to Pro',
     featured: true,
+    checkout: 'paypal',
   },
 ]
 
 export const annualPlans: Plan[] = [
   {
+    id: 'free',
     name: 'Free',
     price: '$0',
     period: '/ forever',
     details: 'Basic features included',
     features: ['All tools access', 'Up to 50MB per file', 'Standard processing speed', 'Web-based access'],
     cta: 'Get Started',
+    checkout: 'free',
   },
   {
+    id: 'pro_annual',
     name: 'Pro',
     price: '$59.99',
     period: '/ year',
     badge: 'Best Value',
-    details: 'Billed annually · save ~50%',
+    details: 'Billed annually via PayPal · save ~50%',
     features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
     cta: 'Upgrade to Pro',
     featured: true,
+    checkout: 'paypal',
   },
 ]
 
 /** Home page keeps three static cards for the marketing layout. */
 export const homePlans: Plan[] = [
   {
+    id: 'free',
     name: 'Free',
     price: '$0',
     period: '/ forever',
     details: 'Basic features included',
     features: ['All tools access', 'Up to 50MB per file', 'Standard processing speed', 'Web-based access'],
     cta: 'Get Started',
+    checkout: 'free',
   },
   {
+    id: 'pro_monthly',
     name: 'Pro Monthly',
     price: '$9.99',
     period: '/ month',
     badge: 'Most Popular',
-    details: 'Billed monthly',
+    details: 'Billed monthly via PayPal',
     features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
-    cta: 'Get Started',
+    cta: 'Upgrade to Pro',
     featured: true,
+    checkout: 'paypal',
   },
   {
+    id: 'pro_annual',
     name: 'Pro Annual',
     price: '$59.99',
     period: '/ year',
-    details: 'Billed annually',
+    details: 'Billed annually via PayPal',
     features: ['All tools access', 'No file size limit', 'High-speed processing', 'Priority support'],
-    cta: 'Get Started',
+    cta: 'Upgrade to Pro',
+    checkout: 'paypal',
   },
 ]
 
