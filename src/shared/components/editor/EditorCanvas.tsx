@@ -325,6 +325,18 @@ export function EditorCanvas({
         </label>
       )
     }
+    if (tool === 'compress') {
+      return (
+        <label className="viewer-editing-indicator">
+          Compression level
+          <select defaultValue="medium" onChange={(event) => onOperationOptionsChange?.({ quality: event.target.value })}>
+            <option value="low">Stronger (smaller file)</option>
+            <option value="medium">Balanced</option>
+            <option value="high">Lighter (better quality)</option>
+          </select>
+        </label>
+      )
+    }
     if (tool === 'watermark') {
       return (
         <label className="viewer-editing-indicator">

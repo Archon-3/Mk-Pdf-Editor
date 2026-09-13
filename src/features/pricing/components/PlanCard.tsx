@@ -23,15 +23,21 @@ export function PlanCard({ plan }: PlanCardProps) {
     setBusy(true)
     try {
       const order = await startPayPalCheckout(plan.id)
-      window.location.assign(order.approveUrl!)
+      if (!order.approveUrl) {
+        throw new Error('PayPal did not return a checkout link.')
+      }
+      window.location.assign(order.approveUrl)
     } catch (checkoutError) {
       const message = checkoutError instanceof Error
         ? checkoutError.message
         : 'PayPal checkout is unavailable right now.'
       setError(message)
+    } finally {
       setBusy(false)
     }
   }
+
+  const isPaid = plan.checkout === 'paypal' && plan.id !== 'free'
 
   return (
     <section className={`plan-card ${plan.featured ? 'featured' : ''}`}>
@@ -48,8 +54,11 @@ export function PlanCard({ plan }: PlanCardProps) {
         ))}
       </ul>
       <button type="button" className="plan-cta" onClick={handleCheckout} disabled={busy}>
-        {busy ? 'Redirecting to PayPal…' : plan.cta}
+        {busy ? 'Opening PayPal…' : plan.cta}
       </button>
+      {isPaid ? (
+        <p className="plan-pay-secure">Secure payment via PayPal</p>
+      ) : null}
       {error ? (
         <p className="plan-checkout-error" role="alert">
           {error}{' '}

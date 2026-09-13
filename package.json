@@ -21,6 +21,7 @@
     "vitest": "^4.1.11"
   },
   "dependencies": {
+    "firebase": "^11.6.0",
     "mammoth": "^1.12.2",
     "pdfjs-dist": "^6.3.289",
     "react": "^19.2.8",

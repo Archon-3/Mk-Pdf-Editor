@@ -1,4 +1,7 @@
-"""Plan limits for Free vs Pro users (plus unlimited developer mode)."""
+"""Plan limits for Free vs Pro users (plus unlimited developer mode).
+
+Numeric caps are loaded from admin settings when available.
+"""
 
 from __future__ import annotations
 
@@ -27,6 +30,47 @@ def _env_force_unlimited() -> bool:
     return os.getenv('DEV_UNLIMITED', '').strip().lower() in {'1', 'true', 'yes', 'on'}
 
 
+def _configured_limits() -> dict[str, Any]:
+    try:
+        from backend.app.services.admin.settings import load_settings
+        return load_settings().get('limits') or {}
+    except Exception:
+        return {}
+
+
+def _tier_bytes(tier: str, fallback: int) -> int:
+    limits = _configured_limits().get(tier) or {}
+    mb = limits.get('maxFileMb')
+    try:
+        if mb is not None:
+            return max(1, int(mb)) * 1024 * 1024
+    except (TypeError, ValueError):
+        pass
+    return fallback
+
+
+def _tier_jobs(tier: str, fallback: int) -> int:
+    limits = _configured_limits().get(tier) or {}
+    value = limits.get('maxJobsPerDay')
+    try:
+        if value is not None:
+            return max(1, int(value))
+    except (TypeError, ValueError):
+        pass
+    return fallback
+
+
+def _tier_merge(tier: str, fallback: int) -> int:
+    limits = _configured_limits().get(tier) or {}
+    value = limits.get('maxMergeFiles')
+    try:
+        if value is not None:
+            return max(1, int(value))
+    except (TypeError, ValueError):
+        pass
+    return fallback
+
+
 def normalize_plan(plan_id: str | None) -> str:
     value = (plan_id or 'free').strip().lower()
     if value in DEV_PLANS:
@@ -45,38 +89,89 @@ def is_pro(plan_id: str | None) -> bool:
     return is_developer(plan_id) or plan in {'pro_monthly', 'pro_annual'}
 
 
-def limits_for(plan_id: str | None) -> dict[str, Any]:
-    if is_developer(plan_id):
+def limits_for(
+    plan_id: str | None,
+    *,
+    user_email: str | None = None,
+    user_uid: str | None = None,
+) -> dict[str, Any]:
+    managed = None
+    try:
+        from backend.app.services.admin.users import find_user
+        managed = find_user(email=user_email, uid=user_uid)
+    except Exception:
+        managed = None
+
+    if managed and managed.get('blocked'):
+        return {
+            'plan': 'blocked',
+            'isPro': False,
+            'isDeveloper': False,
+            'blocked': True,
+            'maxFileBytes': 0,
+            'maxFileLabel': '0MB',
+            'maxJobsPerDay': 0,
+            'maxMergeFiles': 0,
+            'message': 'This account is blocked by an administrator.',
+        }
+
+    effective_plan = plan_id
+    if managed and managed.get('plan'):
+        effective_plan = managed.get('plan')
+
+    if is_developer(effective_plan):
         return {
             'plan': 'developer',
             'isPro': True,
             'isDeveloper': True,
+            'blocked': False,
             'maxFileBytes': DEV_MAX_FILE_BYTES,
             'maxFileLabel': '2GB',
             'maxJobsPerDay': DEV_MAX_JOBS_PER_DAY,
             'maxMergeFiles': DEV_MAX_MERGE_FILES,
         }
 
-    if is_pro(plan_id):
-        return {
-            'plan': normalize_plan(plan_id),
+    if is_pro(effective_plan):
+        max_bytes = _tier_bytes('pro', PRO_MAX_FILE_BYTES)
+        max_jobs = _tier_jobs('pro', PRO_MAX_JOBS_PER_DAY)
+        max_merge = _tier_merge('pro', PRO_MAX_MERGE_FILES)
+        base = {
+            'plan': normalize_plan(effective_plan),
             'isPro': True,
             'isDeveloper': False,
-            'maxFileBytes': PRO_MAX_FILE_BYTES,
-            'maxFileLabel': '200MB',
-            'maxJobsPerDay': PRO_MAX_JOBS_PER_DAY,
-            'maxMergeFiles': PRO_MAX_MERGE_FILES,
+            'blocked': False,
+            'maxFileBytes': max_bytes,
+            'maxFileLabel': f'{max(1, max_bytes // (1024 * 1024))}MB',
+            'maxJobsPerDay': max_jobs,
+            'maxMergeFiles': max_merge,
+        }
+    else:
+        max_bytes = _tier_bytes('free', FREE_MAX_FILE_BYTES)
+        max_jobs = _tier_jobs('free', FREE_MAX_JOBS_PER_DAY)
+        max_merge = _tier_merge('free', FREE_MAX_MERGE_FILES)
+        base = {
+            'plan': 'free',
+            'isPro': False,
+            'isDeveloper': False,
+            'blocked': False,
+            'maxFileBytes': max_bytes,
+            'maxFileLabel': f'{max(1, max_bytes // (1024 * 1024))}MB',
+            'maxJobsPerDay': max_jobs,
+            'maxMergeFiles': max_merge,
         }
 
-    return {
-        'plan': 'free',
-        'isPro': False,
-        'isDeveloper': False,
-        'maxFileBytes': FREE_MAX_FILE_BYTES,
-        'maxFileLabel': '50MB',
-        'maxJobsPerDay': FREE_MAX_JOBS_PER_DAY,
-        'maxMergeFiles': FREE_MAX_MERGE_FILES,
-    }
+    if managed:
+        if managed.get('maxFileMb') is not None:
+            mb = max(1, int(managed['maxFileMb']))
+            base['maxFileBytes'] = mb * 1024 * 1024
+            base['maxFileLabel'] = f'{mb}MB'
+        if managed.get('maxJobsPerDay') is not None:
+            base['maxJobsPerDay'] = max(1, int(managed['maxJobsPerDay']))
+        if managed.get('maxMergeFiles') is not None:
+            base['maxMergeFiles'] = max(1, int(managed['maxMergeFiles']))
+        base['managedUser'] = True
+
+    return base
 
 
 def _usage_path() -> Path:
@@ -104,9 +199,49 @@ def _today() -> str:
     return time.strftime('%Y-%m-%d')
 
 
-def check_and_consume_job(client_key: str, plan_id: str | None) -> dict[str, Any]:
+def usage_snapshot() -> dict[str, Any]:
+    usage = _read_usage()
+    today = _today()
+    clients = usage.get('clients') if usage.get('day') == today else {}
+    if not isinstance(clients, dict):
+        clients = {}
+    ranked = sorted(
+        ({'client': key, 'jobs': int(value)} for key, value in clients.items()),
+        key=lambda item: item['jobs'],
+        reverse=True,
+    )
+    return {
+        'day': today if usage.get('day') == today else today,
+        'totalJobs': sum(item['jobs'] for item in ranked),
+        'activeClients': len(ranked),
+        'clients': ranked[:100],
+        'freeLimits': limits_for('free'),
+        'proLimits': limits_for('pro_monthly'),
+    }
+
+
+def clear_usage() -> None:
+    _write_usage({'day': _today(), 'clients': {}})
+
+
+def check_and_consume_job(
+    client_key: str,
+    plan_id: str | None,
+    *,
+    user_email: str | None = None,
+    user_uid: str | None = None,
+) -> dict[str, Any]:
     """Track daily job usage and reject free users who exceed the daily cap."""
-    limits = limits_for(plan_id)
+    limits = limits_for(plan_id, user_email=user_email, user_uid=user_uid)
+    if limits.get('blocked'):
+        return {
+            'allowed': False,
+            'code': 'USER_BLOCKED',
+            'message': limits.get('message') or 'This account is blocked by an administrator.',
+            'used': 0,
+            'limit': 0,
+            'limits': limits,
+        }
     if limits.get('isDeveloper'):
         return {
             'allowed': True,
@@ -115,7 +250,7 @@ def check_and_consume_job(client_key: str, plan_id: str | None) -> dict[str, Any
             'limits': limits,
         }
 
-    key = (client_key or 'anonymous').strip() or 'anonymous'
+    key = (user_email or user_uid or client_key or 'anonymous').strip() or 'anonymous'
     usage = _read_usage()
     today = _today()
     if usage.get('day') != today:
@@ -128,7 +263,7 @@ def check_and_consume_job(client_key: str, plan_id: str | None) -> dict[str, Any
             'allowed': False,
             'code': 'DAILY_LIMIT',
             'message': (
-                f"Free plan allows {FREE_MAX_JOBS_PER_DAY} tool runs per day. "
+                f"Free plan allows {limits['maxJobsPerDay']} tool runs per day. "
                 'Upgrade to Pro for a much higher daily limit.'
                 if not limits['isPro']
                 else f"Daily Pro limit of {limits['maxJobsPerDay']} runs reached. Try again tomorrow."
@@ -154,8 +289,17 @@ def validate_plan_constraints(
     file_sizes: list[int],
     tool_id: str,
     file_count: int,
+    user_email: str | None = None,
+    user_uid: str | None = None,
 ) -> dict[str, Any]:
-    limits = limits_for(plan_id)
+    limits = limits_for(plan_id, user_email=user_email, user_uid=user_uid)
+    if limits.get('blocked'):
+        return {
+            'valid': False,
+            'code': 'USER_BLOCKED',
+            'message': limits.get('message') or 'This account is blocked by an administrator.',
+            'limits': limits,
+        }
     if limits.get('isDeveloper'):
         return {'valid': True, 'code': 'OK', 'message': 'Developer unlimited.', 'limits': limits}
 

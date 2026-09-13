@@ -16,12 +16,13 @@ def create_app() -> Flask:
     )
     CORS(app, resources={r"/*": {"origins": "*"}})
 
-    from backend.app.routes import api_bp, pdf_bp, conversion_bp, extraction_bp, editor_bp, payments_bp
+    from backend.app.routes import api_bp, pdf_bp, conversion_bp, extraction_bp, editor_bp, payments_bp, admin_bp
     app.register_blueprint(api_bp)
     app.register_blueprint(pdf_bp)
     app.register_blueprint(conversion_bp)
     app.register_blueprint(extraction_bp)
     app.register_blueprint(editor_bp)
     app.register_blueprint(payments_bp)
+    app.register_blueprint(admin_bp)
 
     return app

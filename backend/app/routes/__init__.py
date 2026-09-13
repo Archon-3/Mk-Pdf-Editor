@@ -4,3 +4,4 @@ from .conversion import bp as conversion_bp
 from .extraction import bp as extraction_bp
 from .editor import bp as editor_bp
 from .payments import bp as payments_bp
+from .admin import bp as admin_bp

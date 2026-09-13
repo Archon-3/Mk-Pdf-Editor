@@ -13,6 +13,64 @@ export const FREE_MAX_MERGE_FILES = 3
 export const PRO_MAX_MERGE_FILES = 30
 export const DEV_MAX_MERGE_FILES = 500
 
+type RemoteTier = {
+  maxFileMb: number
+  maxJobsPerDay: number
+  maxMergeFiles: number
+}
+
+type RemoteLimits = {
+  free: RemoteTier
+  pro: RemoteTier
+}
+
+let remoteLimits: RemoteLimits | null = null
+let managedOverrides: {
+  plan?: string
+  blocked?: boolean
+  maxFileBytes?: number
+  maxJobsPerDay?: number
+  maxMergeFiles?: number
+} | null = null
+
+export function applyRemoteLimits(limits: RemoteLimits | null | undefined) {
+  if (!limits?.free || !limits?.pro) return
+  remoteLimits = {
+    free: {
+      maxFileMb: Number(limits.free.maxFileMb) || 50,
+      maxJobsPerDay: Number(limits.free.maxJobsPerDay) || 15,
+      maxMergeFiles: Number(limits.free.maxMergeFiles) || 3,
+    },
+    pro: {
+      maxFileMb: Number(limits.pro.maxFileMb) || 200,
+      maxJobsPerDay: Number(limits.pro.maxJobsPerDay) || 500,
+      maxMergeFiles: Number(limits.pro.maxMergeFiles) || 30,
+    },
+  }
+}
+
+/** Per-user caps from admin (synced via /api/plan/limits). */
+export function applyManagedOverrides(payload: {
+  plan?: string
+  blocked?: boolean
+  maxFileBytes?: number
+  maxJobsPerDay?: number
+  maxMergeFiles?: number
+} | null) {
+  if (!payload) {
+    managedOverrides = null
+    return
+  }
+  managedOverrides = { ...payload }
+  if (payload.plan && !payload.blocked && typeof window !== 'undefined' && !isDeveloperUnlimited()) {
+    window.localStorage.setItem(PLAN_STORAGE_KEY, normalizePlan(payload.plan))
+  }
+}
+
+export function clearManagedOverrides() {
+  managedOverrides = null
+}
+
 const PRO_PLANS = new Set(['pro_monthly', 'pro_annual', 'pro'])
 const DEV_PLANS = new Set(['developer', 'dev', 'unlimited'])
 
@@ -61,7 +119,21 @@ export function clearStoredPlan() {
 }
 
 export function getPlanLimits(planId?: string | null) {
-  const plan = normalizePlan(planId ?? getStoredPlan())
+  if (managedOverrides?.blocked) {
+    return {
+      plan: 'free' as PlanTier,
+      isPro: false,
+      isDeveloper: false,
+      maxFileBytes: 0,
+      maxFileLabel: '0MB',
+      maxJobsPerDay: 0,
+      maxMergeFiles: 0,
+      label: 'Blocked',
+      blocked: true,
+    }
+  }
+
+  const plan = normalizePlan(planId ?? managedOverrides?.plan ?? getStoredPlan())
 
   if (plan === 'developer') {
     return {
@@ -73,19 +145,36 @@ export function getPlanLimits(planId?: string | null) {
       maxJobsPerDay: DEV_MAX_JOBS_PER_DAY,
       maxMergeFiles: DEV_MAX_MERGE_FILES,
       label: 'Dev',
+      blocked: false,
     }
   }
 
   const pro = isProPlan(plan)
+  const tier = pro ? remoteLimits?.pro : remoteLimits?.free
+  let maxFileBytes = tier
+    ? Math.max(1, tier.maxFileMb) * 1024 * 1024
+    : (pro ? PRO_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES)
+  let maxJobsPerDay = tier
+    ? Math.max(1, tier.maxJobsPerDay)
+    : (pro ? PRO_MAX_JOBS_PER_DAY : FREE_MAX_JOBS_PER_DAY)
+  let maxMergeFiles = tier
+    ? Math.max(1, tier.maxMergeFiles)
+    : (pro ? PRO_MAX_MERGE_FILES : FREE_MAX_MERGE_FILES)
+
+  if (managedOverrides?.maxFileBytes != null) maxFileBytes = Math.max(1, managedOverrides.maxFileBytes)
+  if (managedOverrides?.maxJobsPerDay != null) maxJobsPerDay = Math.max(1, managedOverrides.maxJobsPerDay)
+  if (managedOverrides?.maxMergeFiles != null) maxMergeFiles = Math.max(1, managedOverrides.maxMergeFiles)
+
   return {
     plan,
     isPro: pro,
     isDeveloper: false,
-    maxFileBytes: pro ? PRO_MAX_FILE_BYTES : FREE_MAX_FILE_BYTES,
-    maxFileLabel: pro ? '200MB' : '50MB',
-    maxJobsPerDay: pro ? PRO_MAX_JOBS_PER_DAY : FREE_MAX_JOBS_PER_DAY,
-    maxMergeFiles: pro ? PRO_MAX_MERGE_FILES : FREE_MAX_MERGE_FILES,
+    maxFileBytes,
+    maxFileLabel: `${Math.max(1, Math.round(maxFileBytes / (1024 * 1024)))}MB`,
+    maxJobsPerDay,
+    maxMergeFiles,
     label: pro ? (plan === 'pro_annual' ? 'Pro Annual' : 'Pro') : 'Free',
+    blocked: false,
   }
 }
 
@@ -118,6 +207,14 @@ export function incrementLocalUsage() {
 export function assertFilesAllowed(files: File[], toolId: string, planId?: string | null) {
   const limits = getPlanLimits(planId ?? getStoredPlan())
   if (limits.isDeveloper) return { ok: true as const, limits }
+
+  if (limits.blocked || limits.maxJobsPerDay <= 0) {
+    return {
+      ok: false as const,
+      message: 'This account is blocked by an administrator.',
+      limits,
+    }
+  }
 
   for (const file of files) {
     if (file.size > limits.maxFileBytes) {

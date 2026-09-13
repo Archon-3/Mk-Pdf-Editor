@@ -15,6 +15,8 @@ type CaptureOrderResponse = {
   planId?: string
   payer?: string
   amount?: { value?: string; currency_code?: string }
+  demo?: boolean
+  mode?: string
   error?: { code?: string; message?: string }
 }
 
@@ -52,7 +54,7 @@ export async function capturePayPalOrder(orderId: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ orderId }),
   })
-  const data = (await response.json().catch(() => ({}))) as CaptureOrderResponse
+  const data = (await response.json().catch(() => ({}))) as CaptureOrderResponse & { demo?: boolean }
   if (!response.ok || !data.success) {
     throw new Error(data.error?.message || 'Could not confirm PayPal payment.')
   }

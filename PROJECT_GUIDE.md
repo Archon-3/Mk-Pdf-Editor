@@ -14,6 +14,7 @@ This document explains the **MK PDF Editor** project in depth: what it is, how t
 6. [Upload, preview, processing, and where files are stored](#6-upload-preview-processing-and-where-files-are-stored)
 7. [Google AdSense: what it is, and how this project uses it](#7-google-adsense-what-it-is-and-how-this-project-uses-it)
 8. [PayPal checkout and Free vs Pro plan limits](#8-paypal-checkout-and-free-vs-pro-plan-limits) (includes **Dev** unlimited pass + top-bar tag)
+8b. Admin control center is documented under [Admin control center](#admin-control-center) in section 8 (hidden access + SEO strategy nearby).
 9. [Why Python backend fits this project better than Node.js](#9-why-python-backend-fits-this-project-better-than-nodejs)
 10. [What Node.js still has that Python does not](#10-what-nodejs-still-has-that-python-does-not)
 11. [What makes this project different from others on the market](#11-what-makes-this-project-different-from-others-on-the-market)
@@ -97,9 +98,10 @@ Use this as a map when you need to change behavior.
 | `src/main.tsx` | React bootstrap; imports global CSS |
 | `src/App.tsx` | React Router routes |
 | `src/pages/home/` | Landing page |
-| `src/pages/tools/` | Tools list page + per-tool page |
+| `src/pages/tools/` | Tools directory (SEO) + per-tool editor pages + `/workspace` |
 | `src/pages/pricing/` | Pricing page (Free + Pro Monthly + Pro Annual) |
 | `src/pages/support/` | Support page |
+| `src/pages/admin/` | Hidden admin control center (not linked in public nav) |
 | `src/pages/checkout/` | PayPal success / cancel return pages |
 | `src/pages/about/` | About company page |
 | `src/pages/careers/` | Careers page |
@@ -111,11 +113,13 @@ Use this as a map when you need to change behavior.
 Routes currently include:
 
 - `/` — home
-- `/tools` — tools workspace
-- `/tools/:toolId` — tools workspace with a tool preselected
+- `/tools` — tools **workspace** (editor). SEO meta + ItemList JSON-LD still applied for crawlers
+- `/tools/:toolId` — same workspace with a tool preselected + per-tool SEO title/description/JSON-LD
+- `/workspace` — alias workspace route
 - `/pricing` — pricing (always shows Free + Monthly + Annual)
 - `/support` — support / help / contact
 - `/about`, `/careers`, `/privacy`, `/terms` — company / legal
+- `/admin` — admin console (hidden; see secret access)
 - `/checkout/success`, `/checkout/cancel` — PayPal return URLs
 - `/login`, `/signup` — auth UI shells
 
@@ -660,6 +664,168 @@ Set `VITE_FORCE_PLAN_LIMITS=true` in `.env`, restart Vite, and (if set) turn off
 | Backend skip + Dev limits | `backend/app/services/plans/limits.py` |
 | Env template notes | `.env.example` |
 
+### Admin control center
+
+The product includes a password-protected **Admin** area at `/admin` so you can change Free/Pro limits, pricing, and per-user tool caps without editing code.
+
+Admin is **intentionally hidden** from the public header and footer (so visitors do not see an Admin link).
+
+#### How to open Admin (secret access)
+
+| Method | How |
+|--------|-----|
+| Direct URL | Go to `/admin` in the address bar |
+| Keyboard | `Ctrl+Shift+A` (Windows/Linux) or `Cmd+Shift+A` (macOS) |
+| Logo | Triple-click the brand logo in the header |
+
+Sign in with the `ADMIN_PASSWORD` value from your server `.env`. Do not put the real password in docs, UI copy, or git. Keep `.env` gitignored.
+
+#### What admin can manage
+
+| Tab | Purpose |
+|-----|---------|
+| Overview | Today’s job counts, managed-user count, PayPal sandbox, LibreOffice status |
+| Users | Manage accounts by email/Firebase uid: plan, block, per-user file/jobs/merge overrides |
+| User limits | Free vs Pro: max file MB, jobs/day, merge file count (site-wide defaults) |
+| Pricing | Plan names, prices, PayPal amounts, features, badges, CTAs — live on the public site |
+| PayPal sandbox | Sandbox badge, masked client id, API base, return URLs, demo plan amounts |
+| Usage | Daily anonymous client usage from `plan_usage.json` |
+| Site | Maintenance mode (blocks uploads), announcement banner, support email |
+| Setup | Checklist for Firebase / PayPal / LibreOffice (no secrets shown) |
+
+Admin loads **settings first**, then usage/system/users in the background. LibreOffice detection is cached. Public pricing/limits refresh on the site every ~45s and on window focus.
+
+#### How it works
+
+```text
+/admin → password (ADMIN_PASSWORD from .env)
+      → session token in localStorage (X-MK-Admin-Token)
+      → PUT /api/admin/settings → backend/output/admin_settings.json
+      → POST /api/admin/users → backend/output/admin_users.json
+
+Public site / editor
+      → GET /api/admin/public-settings  (pricing + Free/Pro limits)
+      → GET /api/plan/limits (+ X-MK-User-Email / X-MK-User-Id)
+      → live pricing cards + remote Free/Pro limits + managed-user overrides
+```
+
+When you change pricing or Free/Pro limits in Admin and save, the marketing pages and editor pick them up without a redeploy. Per-user plan/block/caps apply on the next tool run (and on the next limits sync for the signed-in user).
+
+#### Key files
+
+| Layer | Path |
+|-------|------|
+| Admin UI | `src/features/admin/`, `src/pages/admin/` |
+| Admin API client | `src/shared/api/admin.ts` |
+| Live pricing hook | `src/features/pricing/hooks/useLivePlans.ts` |
+| Managed overrides (frontend) | `src/shared/plan/limits.ts` (`applyManagedOverrides`) |
+| Admin routes | `backend/app/routes/admin.py` |
+| Settings store | `backend/app/services/admin/settings.py` |
+| Users store | `backend/app/services/admin/users.py` |
+| Admin auth | `backend/app/services/admin/auth.py` |
+| Limits + managed users | `backend/app/services/plans/limits.py` |
+| PayPal amounts from settings | `backend/app/services/payments/paypal.py` |
+
+Set `ADMIN_PASSWORD` in `.env` for production. Restart the backend after changing it.
+
+#### Admin setup checklist (what you must do)
+
+1. **Admin password** — set `ADMIN_PASSWORD` in `.env` (open admin via `Ctrl+Shift+A` / triple-click logo / `/admin`). Never commit the password.
+2. **Firebase Auth** — create a Firebase web app, enable Email/Password + Google, copy `VITE_FIREBASE_*` into `.env`, add `localhost` to authorized domains, restart Vite.
+3. **PayPal** — optional real keys; otherwise `PAYPAL_DEMO=1` keeps sandbox demo checkout working.
+4. **LibreOffice** — install for high-fidelity Office conversion and previews (set `PREVIEW_FAST_HTML=1` only if you need faster low-fidelity HTML previews).
+5. Use Admin tabs: **Users**, **User limits**, **Pricing**, **PayPal sandbox**, **Usage**, **Site**, **Setup**.
+
+As the **developer** (`npm run dev`): no plan limits, and tools do **not** require login unless you set `VITE_FORCE_AUTH=true` (and optionally `VITE_FORCE_PLAN_LIMITS=true`) to test like a normal user.
+
+#### Performance notes (tools + admin)
+
+| Area | Behavior |
+|------|----------|
+| Office preview | LibreOffice PDF first (true layout/colors); HTML only as fallback or when `PREVIEW_FAST_HTML=1` |
+| PDF → Word | LibreOffice PDF→HTML→DOCX when installed; structured rebuild as fallback |
+| Processing engine | Shared singleton on API routes (avoids recreating per request) |
+| Admin settings/users | In-memory cache keyed by file mtime |
+| Admin LibreOffice check | Cached after first lookup |
+| Live site sync | Public settings + user limits refresh on focus / ~45s |
+
+### Firebase authentication
+
+User accounts use **Firebase Auth** (email/password + Google popup).
+
+| Piece | Path |
+|-------|------|
+| Firebase config | `src/shared/firebase/config.ts` |
+| Auth API | `src/features/auth/api/authApi.ts` |
+| Auth provider | `src/features/auth/hooks/useAuth.tsx` |
+| Header buttons | `src/shared/components/Header.tsx` (account name + Log in / Sign up / Log out sit on the right) |
+| Tools gate | `RequireAuth` around `/tools` routes |
+
+**Setup steps**
+
+1. Firebase Console → Project settings → Your apps → Web → copy config keys.
+2. Put them in `.env` as `VITE_FIREBASE_API_KEY`, `AUTH_DOMAIN`, `PROJECT_ID`, `STORAGE_BUCKET`, `MESSAGING_SENDER_ID`, `APP_ID`.
+3. Authentication → Sign-in method → enable Email/Password and Google.
+4. Authorized domains → include `localhost`.
+5. Restart `npm run dev`.
+
+Header shows the account holder name when signed in, plus **Log in** / **Sign up** / **Log out** aligned toward the right of the nav. Real users must sign in to open tools. Developers in `npm run dev` bypass login (unless `VITE_FORCE_AUTH=true`).
+
+### SEO & discoverability strategy
+
+Goal: when someone searches for a tool (e.g. “pdf to word online”, “merge pdf”) in **Google, Bing, DuckDuckGo** (and browser search that uses those engines in Chrome, Edge, Firefox), MK PDF Editor tool pages should be crawlable and competitive.
+
+Browsers themselves do not rank sites — **search engines** do. This project optimizes for those engines.
+
+#### What we ship for SEO
+
+| Asset | Purpose |
+|-------|---------|
+| `public/robots.txt` | Allows crawling; blocks `/admin`, checkout, auth |
+| `public/sitemap.xml` | Lists home, `/tools`, and every `/tools/:id` URL |
+| `index.html` defaults | Base title, description, Open Graph, Twitter cards |
+| `src/shared/seo/` | `SeoHead` + per-tool `TOOL_SEO` catalog |
+| `/tools` workspace | Same editor UI + SEO meta + ItemList JSON-LD (hidden crawlable H1) — **no extra tools directory page** |
+| `/tools/:toolId` | Unique title, meta description, keywords, JSON-LD, hidden H1 |
+| `VITE_SITE_URL` | Canonical domain for absolute URLs (default `https://mkpdfeditor.com`) |
+
+SEO uses existing app routes only. Do not add separate crawler-only pages; update `SeoHead` / `TOOL_SEO` / `sitemap.xml` instead.
+
+#### Per-tool SEO catalog
+
+`src/shared/seo/catalog.ts` defines for each tool:
+
+- Search-oriented **title** (e.g. “PDF to Word Converter Online Free…”)
+- **Meta description** with intent keywords
+- **Keywords** array
+- Visible **H1** on the tool page
+- Path used for canonical + sitemap
+
+`SeoHead` updates `document.title`, description, robots, canonical, Open Graph, Twitter, and JSON-LD (`SoftwareApplication` + `BreadcrumbList`) on each route change.
+
+#### Launch checklist (production ranking)
+
+1. Deploy on a real HTTPS domain and set `VITE_SITE_URL` to that domain.
+2. Update `public/sitemap.xml` and `robots.txt` Sitemap line to the same domain.
+3. Submit the sitemap in [Google Search Console](https://search.google.com/search-console) and [Bing Webmaster Tools](https://www.bing.com/webmasters) (Edge/Chrome/Firefox search often use Google or Bing).
+4. Keep unique, helpful copy on each tool page (already started via `TOOL_SEO`).
+5. Earn links from your own About/Support content; avoid doorway-page spam.
+6. Optional later: prerender/SSR for even stronger first-paint HTML for crawlers.
+
+#### Honest SEO note
+
+A React SPA can be indexed, but ranking #1 is never guaranteed. Technical SEO here makes pages **eligible and clear**. Content quality, domain authority, and backlinks decide how high you appear.
+
+### Deploying (Vercel and friends)
+
+| Piece | Vercel? | Notes |
+|-------|---------|-------|
+| React/Vite frontend | Yes | Static SPA build (`npm run build`) works on Vercel |
+| Flask Python backend | No (not as-is) | Needs a long-running server + disk + optional LibreOffice (Railway, Render, Fly.io, or a VPS) |
+| PayPal / Firebase | Yes | Set env vars on each host; `FRONTEND_URL` + `VITE_API_URL` must point at production URLs |
+
+Typical production shape: **frontend on Vercel** + **backend on Railway/Render/Fly** + `VITE_API_URL=https://your-api.example.com`. Putting only the frontend on Vercel without a hosted backend means tools, PayPal create/capture, and admin will not work.
+
 ### Honest note on entitlement trust
 
 Today the Pro flag is primarily **client-stored** (`localStorage`) and echoed to the API as `planId`. That is fine for demos and local product development. Production hardening should bind PayPal captures to signed server-side entitlements (user account / JWT / webhook-verified subscription) so Free users cannot simply set `mkpdf.plan` to Pro in DevTools. The **Dev** pass is intentionally limited to local Vite / `DEV_UNLIMITED` — production builds must not ship with `VITE_DEV_UNLIMITED=true`.
@@ -1194,8 +1360,10 @@ Copy `.env.example` to `.env` and fill what you need:
 - `FRONTEND_URL`, `PAYPAL_MODE`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` for Pro checkout
 - `DEV_UNLIMITED=1` for local backend unlimited (optional; Vite already sends `developer`)
 - `VITE_FORCE_PLAN_LIMITS=true` only when you want to test Free/Pro gates locally
+- `ADMIN_PASSWORD` for `/admin` (set in `.env`; never commit real secrets)
 
 With `npm run dev`, the editor shows the **Dev** tag and skips Free/Pro caps (see [§8 Developer unlimited mode](#developer-unlimited-mode-you--pass--dev-tag)).
+Open `/admin` to edit live limits and pricing.
 
 ### Run frontend
 
@@ -1286,6 +1454,9 @@ And if you remember only one lesson from the hardest challenges, remember this:
 | Frontend API calls | `src/shared/api/client.ts` |
 | Free / Pro / Dev plan helpers | `src/shared/plan/` |
 | Dev / Free / Pro top-bar tag | `src/shared/components/editor/EditorTopBar.tsx` |
+| Admin control center | `src/pages/admin/`, `src/features/admin/`, `backend/app/routes/admin.py` |
+| SEO / discoverability | `src/shared/seo/`, `public/robots.txt`, `public/sitemap.xml` |
+| Tools directory (SEO) | `src/pages/tools/ToolsListPage.tsx` |
 | PayPal (frontend) | `src/shared/api/payments.ts`, `src/pages/checkout/` |
 | Live backend API | `backend/app/routes/api.py` |
 | Plan limits (backend) | `backend/app/services/plans/limits.py` |

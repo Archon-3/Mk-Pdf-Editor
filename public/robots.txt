@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /checkout/
+Disallow: /login
+Disallow: /signup
+
+Sitemap: https://mkpdfeditor.com/sitemap.xml

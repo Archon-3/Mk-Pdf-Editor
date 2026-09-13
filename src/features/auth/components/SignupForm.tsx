@@ -5,7 +5,7 @@ import { useAuth } from '../hooks/useAuth.tsx'
 import { GoogleContinueButton } from './GoogleContinueButton.tsx'
 
 export function SignupForm() {
-  const { signup, continueWithGoogle } = useAuth()
+  const { signup, continueWithGoogle, firebaseReady } = useAuth()
   const navigate = useNavigate()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
@@ -33,28 +33,28 @@ export function SignupForm() {
     }
   }
 
-  async function handleGoogleContinue(token: string) {
-    setError('')
-    setSubmitting(true)
-    try {
-      await continueWithGoogle(token)
-      navigate('/tools')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not continue with Google. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   return (
     <form className="auth-form" onSubmit={handleSubmit} noValidate>
       <div className="auth-form-copy">
         <p className="eyebrow">Get started free</p>
         <h1>Create your {APP_NAME} account</h1>
-        <p className="auth-lead">Start editing PDFs in seconds — no credit card required.</p>
+        <p className="auth-lead">Sign up with Firebase — then open the tools workspace.</p>
       </div>
 
-      <GoogleContinueButton disabled={submitting} onToken={handleGoogleContinue} />
+      {!firebaseReady ? (
+        <p className="auth-error">
+          Add Firebase web config to <code>.env</code> (see <code>.env.example</code>), then restart Vite.
+        </p>
+      ) : null}
+
+      <GoogleContinueButton
+        disabled={submitting || !firebaseReady}
+        onContinue={async () => {
+          setError('')
+          await continueWithGoogle()
+          navigate('/tools')
+        }}
+      />
 
       <div className="auth-divider" role="separator" aria-label="or">
         <span>or</span>
@@ -99,7 +99,7 @@ export function SignupForm() {
 
       {error ? <p className="auth-error">{error}</p> : null}
 
-      <button className="auth-submit" type="submit" disabled={submitting}>
+      <button className="auth-submit" type="submit" disabled={submitting || !firebaseReady}>
         {submitting ? 'Creating account…' : 'Sign up'}
       </button>
 

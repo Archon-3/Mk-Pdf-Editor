@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom'
-import { PlanGrid, homePlans } from '../../pricing'
+import { PlanGrid } from '../../pricing'
+import { useLivePlans } from '../../pricing/hooks/useLivePlans'
 import { whyItems } from '../data/content'
 
 export function ValuePricing() {
+  const { plans, site } = useLivePlans()
+
   return (
     <section className="value-pricing" id="pricing">
       <article className="value-block">
@@ -22,13 +25,14 @@ export function ValuePricing() {
 
       <article className="pricing-block">
         <h2>Simple, Transparent Pricing</h2>
+        {site?.announcement ? <p className="site-announcement">{site.announcement}</p> : null}
         <div className="period-switch" aria-hidden="true">
           <span>Monthly</span>
           <span className="active">Annual</span>
           <span className="save">Save up to 40%</span>
         </div>
 
-        <PlanGrid plans={homePlans} />
+        <PlanGrid plans={plans} />
 
         <div className="paypal-note">
           <strong>Payment method: PayPal</strong>

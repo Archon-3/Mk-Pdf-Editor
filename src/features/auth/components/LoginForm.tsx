@@ -1,12 +1,14 @@
 import { type FormEvent, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { APP_NAME } from '../../../shared/constants/branding'
 import { useAuth } from '../hooks/useAuth.tsx'
 import { GoogleContinueButton } from './GoogleContinueButton.tsx'
 
 export function LoginForm() {
-  const { login, continueWithGoogle } = useAuth()
+  const { login, continueWithGoogle, firebaseReady } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = (location.state as { from?: string } | null)?.from || '/tools'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -24,22 +26,9 @@ export function LoginForm() {
     setSubmitting(true)
     try {
       await login({ email, password })
-      navigate('/tools')
+      navigate(redirectTo)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not log in. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleGoogleContinue(token: string) {
-    setError('')
-    setSubmitting(true)
-    try {
-      await continueWithGoogle(token)
-      navigate('/tools')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not continue with Google. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -50,10 +39,23 @@ export function LoginForm() {
       <div className="auth-form-copy">
         <p className="eyebrow">Welcome back</p>
         <h1>Log in to {APP_NAME}</h1>
-        <p className="auth-lead">Access your PDF tools and continue where you left off.</p>
+        <p className="auth-lead">Sign in with Firebase to use PDF tools.</p>
       </div>
 
-      <GoogleContinueButton disabled={submitting} onToken={handleGoogleContinue} />
+      {!firebaseReady ? (
+        <p className="auth-error">
+          Add Firebase web config to <code>.env</code> (see <code>.env.example</code>), then restart Vite.
+        </p>
+      ) : null}
+
+      <GoogleContinueButton
+        disabled={submitting || !firebaseReady}
+        onContinue={async () => {
+          setError('')
+          await continueWithGoogle()
+          navigate(redirectTo)
+        }}
+      />
 
       <div className="auth-divider" role="separator" aria-label="or">
         <span>or</span>
@@ -86,7 +88,7 @@ export function LoginForm() {
 
       {error ? <p className="auth-error">{error}</p> : null}
 
-      <button className="auth-submit" type="submit" disabled={submitting}>
+      <button className="auth-submit" type="submit" disabled={submitting || !firebaseReady}>
         {submitting ? 'Logging in…' : 'Log in'}
       </button>
 

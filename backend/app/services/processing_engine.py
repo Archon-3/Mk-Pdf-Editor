@@ -193,7 +193,67 @@ class ProcessingEngine:
             elif tool_id == 'watermark':
                 watermark_text = str(options.get('text', 'MK PDF')).strip() or 'MK PDF'
                 for page in document:
-                    page.insert_text((page.rect.width / 2 - 45, page.rect.height / 2), watermark_text[:40], rotate=45, color=(0.65, 0.65, 0.65), fontsize=28)
+                    center = fitz.Point(page.rect.width / 2, page.rect.height / 2)
+                    # rotate= only allows 0/90/180/270 — use morph for diagonal text
+                    page.insert_text(
+                        center,
+                        watermark_text[:48],
+                        fontsize=36,
+                        color=(0.62, 0.62, 0.62),
+                        fill_opacity=0.35,
+                        morph=(center, fitz.Matrix(45)),
+                        overlay=True,
+                    )
+            elif tool_id == 'compress':
+                quality = str(options.get('quality', 'medium')).strip().lower()
+                jpeg_quality = {'low': 35, 'medium': 55, 'high': 75}.get(quality, 55)
+                max_edge = {'low': 1000, 'medium': 1400, 'high': 1800}.get(quality, 1400)
+                try:
+                    from PIL import Image
+                    import io as _io
+
+                    for page in document:
+                        for image_info in page.get_images(full=True):
+                            xref = image_info[0]
+                            try:
+                                extracted = document.extract_image(xref)
+                            except Exception:
+                                continue
+                            image_bytes = extracted.get('image')
+                            if not image_bytes:
+                                continue
+                            try:
+                                image = Image.open(_io.BytesIO(image_bytes))
+                            except Exception:
+                                continue
+                            if image.mode not in {'RGB', 'L'}:
+                                image = image.convert('RGB')
+                            width, height = image.size
+                            longest = max(width, height)
+                            if longest > max_edge:
+                                scale = max_edge / float(longest)
+                                image = image.resize(
+                                    (max(1, int(width * scale)), max(1, int(height * scale))),
+                                    Image.Resampling.LANCZOS,
+                                )
+                            buffer = _io.BytesIO()
+                            image.save(buffer, format='JPEG', quality=jpeg_quality, optimize=True)
+                            try:
+                                page.replace_image(xref, stream=buffer.getvalue())
+                            except Exception:
+                                # Older PyMuPDF: rewrite stream when replace_image is unavailable
+                                try:
+                                    document.update_stream(xref, buffer.getvalue())
+                                except Exception:
+                                    continue
+                    for page in document:
+                        try:
+                            page.clean_contents()
+                        except Exception:
+                            pass
+                except Exception:
+                    # Still rewrite/deflate below even if image pass fails
+                    pass
             elif tool_id in {'annotation', 'signature'}:
                 note_text = str(options.get('text', 'MK PDF note')).strip() or 'MK PDF note'
                 for page in document:
@@ -205,7 +265,15 @@ class ProcessingEngine:
                         for rectangle in page.search_for(search_text):
                             page.add_redact_annot(rectangle, fill=(1, 1, 1))
                         page.apply_redactions()
-            document.save(output_path, garbage=4, deflate=True, deflate_images=True, deflate_fonts=True)
+            # Always rewrite: compress and all edit tools benefit from garbage collection.
+            document.save(
+                output_path,
+                garbage=4,
+                deflate=True,
+                deflate_images=True,
+                deflate_fonts=True,
+                clean=True,
+            )
         return str(output_path)
 
     def get_status(self, job_id: str) -> Dict[str, Any]:

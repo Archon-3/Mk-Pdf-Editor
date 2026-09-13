@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://mkpdfeditor.com/</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools</loc><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://mkpdfeditor.com/pricing</loc><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://mkpdfeditor.com/support</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://mkpdfeditor.com/about</loc><changefreq>yearly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://mkpdfeditor.com/privacy</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://mkpdfeditor.com/terms</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/merge</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/split</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/compress</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/rotate</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/delete-pages</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/page-rearrangement</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/pdf-to-word</loc><changefreq>weekly</changefreq><priority>0.95</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/pdf-to-excel</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/pdf-to-powerpoint</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/word-to-pdf</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/excel-to-pdf</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/powerpoint-to-pdf</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/image-to-pdf</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/pdf-to-image</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/extract-images</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/extract-text</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/extract-tables</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/watermark</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/redaction</loc><changefreq>weekly</changefreq><priority>0.85</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/annotation</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://mkpdfeditor.com/tools/signature</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>
+</urlset>
