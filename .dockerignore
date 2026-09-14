@@ -6,3 +6,16 @@ dist
 Dockerfile
 README.md
 npm-debug.log*
+
+# Backend runtime data, caches and secrets (never bake into an image)
+backend/uploads
+backend/output
+backend/tmp
+backend/cache
+backend/vendor
+backend/tests
+**/__pycache__
+**/*.py[cod]
+.env
+.env.*
+!.env.example
