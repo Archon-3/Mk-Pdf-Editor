@@ -8,15 +8,35 @@ def create_app() -> Flask:
     load_dotenv()
 
     app = Flask(__name__)
+
     app.config.update(
         MAX_CONTENT_LENGTH=2 * 1024 * 1024 * 1024,
         UPLOAD_FOLDER='backend/uploads',
         OUTPUT_FOLDER='backend/output',
         SECRET_KEY='docuforge-dev-secret',
     )
-    CORS(app, resources={r"/*": {"origins": "*"}})
 
-    from backend.app.routes import api_bp, pdf_bp, conversion_bp, extraction_bp, editor_bp, payments_bp, admin_bp
+    CORS(
+        app,
+        resources={
+            r"/api/*": {
+                "origins": "https://mk-pdf-editor.vercel.app"
+            }
+        },
+        methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
+    )
+
+    from backend.app.routes import (
+        api_bp,
+        pdf_bp,
+        conversion_bp,
+        extraction_bp,
+        editor_bp,
+        payments_bp,
+        admin_bp
+    )
+
     app.register_blueprint(api_bp)
     app.register_blueprint(pdf_bp)
     app.register_blueprint(conversion_bp)
